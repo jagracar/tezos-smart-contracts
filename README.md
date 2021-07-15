@@ -18,6 +18,7 @@ rm install.sh
 ```bash
 cd ~/github/tezos-smart-contracts
 ~/admin/smartpy/SmartPy.sh test python/tests/managerContract_test.py output/tests/managerContract --html --purge
+~/admin/smartpy/SmartPy.sh test python/tests/patientContract_test.py output/tests/patientContract --html --purge
 ```
 
 ## Compile the contracts
@@ -25,4 +26,5 @@ cd ~/github/tezos-smart-contracts
 ```bash
 cd ~/github/tezos-smart-contracts
 ~/admin/smartpy/SmartPy.sh compile python/contracts/managerContract.py output/contracts/managerContract --html --purge
+~/admin/smartpy/SmartPy.sh compile python/contracts/patientContract.py output/contracts/patientContract --html --purge
 ```
