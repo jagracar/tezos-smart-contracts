@@ -4,9 +4,11 @@
 
 import smartpy as sp
 
-# Import the patientContract module
+# Import the patientContract and the doctorContract modules
 patientContract = sp.io.import_script_from_url(
     "file:python/contracts/patientContract.py")
+doctorContract = sp.io.import_script_from_url(
+    "file:python/contracts/doctorContract.py")
 
 
 @sp.add_test(name="Test initialization")
@@ -79,3 +81,33 @@ def test_get_medicament():
     scenario.verify(c.data.illness.open_some().name == "flu")
     scenario.verify(~c.data.illness.open_some().medicament.is_some())
     scenario.verify(~c.data.illness.open_some().cured)
+
+
+@sp.add_test(name="Test visit doctor")
+def test_visit_doctor():
+    # Initialize the doctor contract
+    doctor = doctorContract.DoctorContract()
+
+    # Initialize the patient contract
+    patient = patientContract.PatientContract(doctor.address)
+
+    # Add the contracts to the test scenario
+    scenario = sp.test_scenario()
+    scenario += doctor
+    scenario += patient
+
+    # Make the patient sick
+    illness = "headache"
+    scenario += patient.get_sick(illness)
+    scenario.verify(patient.data.illness.open_some().name == illness)
+    scenario.verify(~patient.data.illness.open_some().medicament.is_some())
+    scenario.verify(~patient.data.illness.open_some().cured)
+
+    # Make the patient visit the doctor
+    scenario += patient.visit_doctor()
+
+    # Check that the doctor sent the correct medicament and the patient is cured
+    scenario.verify(patient.data.illness.open_some().name == illness)
+    scenario.verify(
+        patient.data.illness.open_some().medicament.open_some() == doctor.data.medicaments[illness])
+    scenario.verify(patient.data.illness.open_some().cured)

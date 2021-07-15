@@ -61,9 +61,10 @@ class PatientContract(sp.Contract):
         """The patient visits the doctor.
 
         """
+        # Pass the illness information to the doctor and wait for the treatment
         doctor = sp.contract(
             sp.TString, self.data.doctor,
-            entry_point="listen_patient").open_some()
+            entry_point="treat_illness").open_some()
         sp.transfer(self.data.illness.open_some().name, sp.mutez(0), doctor)
 
 
