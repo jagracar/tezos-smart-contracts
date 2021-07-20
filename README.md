@@ -20,6 +20,7 @@ cd ~/github/tezos-smart-contracts
 ~/admin/smartpy/SmartPy.sh test python/tests/managerContract_test.py output/tests/managerContract --html --purge
 ~/admin/smartpy/SmartPy.sh test python/tests/patientContract_test.py output/tests/patientContract --html --purge
 ~/admin/smartpy/SmartPy.sh test python/tests/doctorContract_test.py output/tests/doctorContract --html --purge
+~/admin/smartpy/SmartPy.sh test python/tests/pingPongContract_test.py output/tests/pingPongContract --html --purge
 ```
 
 ## Compile the contracts
@@ -29,4 +30,5 @@ cd ~/github/tezos-smart-contracts
 ~/admin/smartpy/SmartPy.sh compile python/contracts/managerContract.py output/contracts/managerContract --html --purge
 ~/admin/smartpy/SmartPy.sh compile python/contracts/patientContract.py output/contracts/patientContract --html --purge
 ~/admin/smartpy/SmartPy.sh compile python/contracts/doctorContract.py output/contracts/doctorContract --html --purge
+~/admin/smartpy/SmartPy.sh compile python/contracts/pingPongContract.py output/contracts/pingPongContract --html --purge
 ```
