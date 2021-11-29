@@ -327,3 +327,12 @@ class MultisignWalletContract(sp.Contract):
                     amount=token_amount)]))]),
             amount=sp.mutez(0),
             destination=c)
+
+
+# Add a compilation target initialized to some random user accounts
+sp.add_compilation_target("multisign", MultisignWalletContract(
+    users={sp.address("tz1g6JRCpsEnD2BLiAzPNK3GBD1fKicUser1"),
+           sp.address("tz1g6JRCpsEnD2BLiAzPNK3GBD1fKicUser2"),
+           sp.address("tz1g6JRCpsEnD2BLiAzPNK3GBD1fKicUser3"),
+           sp.address("tz1g6JRCpsEnD2BLiAzPNK3GBD1fKicUser4")},
+    minimum_votes=sp.nat(3)))
