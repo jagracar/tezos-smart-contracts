@@ -32,5 +32,5 @@ cd ~/github/tezos-smart-contracts
 ~/admin/smartpy/SmartPy.sh compile python/contracts/patientContract.py output/contracts/patientContract --html --purge
 ~/admin/smartpy/SmartPy.sh compile python/contracts/doctorContract.py output/contracts/doctorContract --html --purge
 ~/admin/smartpy/SmartPy.sh compile python/contracts/pingPongContract.py output/contracts/pingPongContract --html --purge
-~/admin/smartpy/SmartPy.sh compile python/tests/multisignWalletContract_test.py output/contracts/multisignWalletContract --html --purge
+~/admin/smartpy/SmartPy.sh compile python/contracts/multisignWalletContract.py output/contracts/multisignWalletContract --html --purge
 ```
