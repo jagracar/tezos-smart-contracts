@@ -19,7 +19,8 @@ def get_test_environment():
     # Initialize the multisign wallet contract
     multisign = multisignWalletContract.MultisignWalletContract(
         users={user1.address, user2.address, user3.address, user4.address},
-        minimum_votes=3)
+        minimum_votes=3,
+        expiration_time=sp.some(3))
 
     # Add some initial balance to the multisign wallet
     multisign.set_initial_balance(sp.tez(10))
@@ -137,6 +138,48 @@ def test_minimum_votes_proposal():
     scenario.verify(multisign.data.minimum_votes == 2)
 
 
+@sp.add_test(name="Test expiration time proposal")
+def test_expiration_time_proposal():
+    # Get the test environment
+    testEnvironment = get_test_environment()
+    scenario = testEnvironment["scenario"]
+    user1 = testEnvironment["user1"]
+    user2 = testEnvironment["user2"]
+    user3 = testEnvironment["user3"]
+    user4 = testEnvironment["user4"]
+    multisign = testEnvironment["multisign"]
+
+    # Add an expiration time proposal
+    scenario += multisign.expiration_time_proposal(sp.none).run(sender=user4)
+
+    # Vote for the proposal
+    scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(sender=user1)
+    scenario += multisign.vote_proposal(proposal_id=0, approval=False).run(sender=user2)
+    scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(sender=user3)
+    scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(sender=user4)
+
+    # Execute the proposal
+    scenario += multisign.execute_proposal(0).run(sender=user3)
+
+    # Check that the expiration time has been updated
+    scenario.verify(multisign.data.expiration_time == sp.none)
+
+    # Add another expiration time proposal
+    scenario += multisign.expiration_time_proposal(sp.some(7)).run(sender=user4)
+
+    # Vote for the proposal
+    scenario += multisign.vote_proposal(proposal_id=1, approval=True).run(sender=user1)
+    scenario += multisign.vote_proposal(proposal_id=1, approval=False).run(sender=user2)
+    scenario += multisign.vote_proposal(proposal_id=1, approval=True).run(sender=user3)
+    scenario += multisign.vote_proposal(proposal_id=1, approval=True).run(sender=user4)
+
+    # Execute the proposal
+    scenario += multisign.execute_proposal(1).run(sender=user3)
+
+    # Check that the expiration time has been updated
+    scenario.verify(multisign.data.expiration_time == sp.some(7))
+
+
 @sp.add_test(name="Test add user proposal")
 def test_add_user_proposal():
     # Get the test environment
@@ -222,3 +265,47 @@ def test_remove_user_proposal():
 
     # Check that the minimum votes parameter has been updated
     scenario.verify(multisign.data.minimum_votes == 2)
+
+
+@sp.add_test(name="Test expired proposal")
+def test_expired_proposal():
+    # Get the test environment
+    testEnvironment = get_test_environment()
+    scenario = testEnvironment["scenario"]
+    user1 = testEnvironment["user1"]
+    user2 = testEnvironment["user2"]
+    user3 = testEnvironment["user3"]
+    user4 = testEnvironment["user4"]
+    multisign = testEnvironment["multisign"]
+
+    # Create the account that will receive the tez transfer
+    receptor = sp.test_account("receptor")
+
+    # Add a transfer tez proposal
+    scenario += multisign.transfer_tez_proposal(
+        tez_amount=sp.tez(3),
+        destination=receptor.address).run(sender=user1, now=sp.timestamp(1000))
+
+    # Vote for the proposal
+    scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(sender=user1)
+    scenario += multisign.vote_proposal(proposal_id=0, approval=False).run(sender=user2)
+    scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(sender=user3)
+
+    # Check that the vote fails if the proposal time has expired
+    scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(
+        valid=False, sender=user4, now=sp.timestamp(1000).add_days(4))
+
+    # Add another transfer tez proposal
+    scenario += multisign.transfer_tez_proposal(
+        tez_amount=sp.tez(3),
+        destination=receptor.address).run(sender=user1, now=sp.timestamp(1000))
+
+    # Vote for the proposal
+    scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(sender=user1)
+    scenario += multisign.vote_proposal(proposal_id=0, approval=False).run(sender=user2)
+    scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(sender=user3)
+    scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(sender=user4)
+
+    # Check that the execution fails because the proposal time has expired
+    scenario += multisign.execute_proposal(0).run(
+        valid=False, sender=user3, now=sp.timestamp(1000).add_days(4))
