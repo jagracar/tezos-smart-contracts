@@ -50,7 +50,9 @@ class MultisignWalletContract(sp.Contract):
         # The proposal expiration time in days (only used in expiration_time proposals)
         expiration_time=sp.TOption(sp.TNat),
         # The address of the user to add or remove (only used in add_user and remove_user proposals)
-        user=sp.TOption(sp.TAddress)).layout((
+        user=sp.TOption(sp.TAddress),
+        # The lambda function to execute (only used in execute_lambda proposals)
+        lambda_function=sp.TOption(sp.TLambda(sp.TUnit, sp.TUnit))).layout((
             "type", (
                 "executed", (
                     "issuer", (
@@ -61,8 +63,9 @@ class MultisignWalletContract(sp.Contract):
                                         "token_amount", (
                                             "destination", (
                                                 "minimum_votes", (
-                                                    "expiration_time",
-                                                    "user"))))))))))))
+                                                    "expiration_time", (
+                                                        "user",
+                                                        "lambda_function")))))))))))))
     """The proposal type definition."""
 
     def __init__(self, users, minimum_votes, expiration_time=sp.nat(5)):
@@ -140,7 +143,8 @@ class MultisignWalletContract(sp.Contract):
             destination=sp.some(params.destination),
             minimum_votes=sp.none,
             expiration_time=sp.none,
-            user=sp.none)
+            user=sp.none,
+            lambda_function=sp.none)
 
         # Increase the proposals counter
         self.data.counter += 1
@@ -174,7 +178,8 @@ class MultisignWalletContract(sp.Contract):
             destination=sp.some(params.destination),
             minimum_votes=sp.none,
             expiration_time=sp.none,
-            user=sp.none)
+            user=sp.none,
+            lambda_function=sp.none)
 
         # Increase the proposals counter
         self.data.counter += 1
@@ -207,7 +212,8 @@ class MultisignWalletContract(sp.Contract):
             destination=sp.none,
             minimum_votes=sp.some(minimum_votes),
             expiration_time=sp.none,
-            user=sp.none)
+            user=sp.none,
+            lambda_function=sp.none)
 
         # Increase the proposals counter
         self.data.counter += 1
@@ -240,7 +246,8 @@ class MultisignWalletContract(sp.Contract):
             destination=sp.none,
             minimum_votes=sp.none,
             expiration_time=sp.some(expiration_time),
-            user=sp.none)
+            user=sp.none,
+            lambda_function=sp.none)
 
         # Increase the proposals counter
         self.data.counter += 1
@@ -273,7 +280,8 @@ class MultisignWalletContract(sp.Contract):
             destination=sp.none,
             minimum_votes=sp.none,
             expiration_time=sp.none,
-            user=sp.some(user))
+            user=sp.some(user),
+            lambda_function=sp.none)
 
         # Increase the proposals counter
         self.data.counter += 1
@@ -306,7 +314,39 @@ class MultisignWalletContract(sp.Contract):
             destination=sp.none,
             minimum_votes=sp.none,
             expiration_time=sp.none,
-            user=sp.some(user))
+            user=sp.some(user),
+            lambda_function=sp.none)
+
+        # Increase the proposals counter
+        self.data.counter += 1
+
+    @sp.entry_point
+    def execute_lambda_proposal(self, lambda_function):
+        """Adds a new execute lambda proposal to the proposals big map.
+
+        """
+        # Define the input parameter data type
+        sp.set_type(lambda_function,
+                    sp.TLambda(sp.TUnit, sp.TUnit))
+
+        # Check that one of the users executed the entry point
+        self.check_is_user()
+
+        # Update the proposals bigmap with the new proposal information
+        self.data.proposals[self.data.counter] = sp.record(
+            type="execute_lambda",
+            executed=False,
+            issuer=sp.sender,
+            timestamp=sp.now,
+            mutez_amount=sp.none,
+            token_contract=sp.none,
+            token_id=sp.none,
+            token_amount=sp.none,
+            destination=sp.none,
+            minimum_votes=sp.none,
+            expiration_time=sp.none,
+            user=sp.none,
+            lambda_function=sp.some(lambda_function))
 
         # Increase the proposals counter
         self.data.counter += 1
@@ -405,6 +445,9 @@ class MultisignWalletContract(sp.Contract):
             # Update the minimum votes parameter if necessary
             sp.if self.data.minimum_votes > sp.len(self.data.users.elements()):
                 self.data.minimum_votes = sp.len(self.data.users.elements())
+
+        sp.if proposal.type == "execute_lambda":
+            proposal.lambda_function.open_some()(sp.none)
 
         # Set the proposal as executed
         proposal.executed = True

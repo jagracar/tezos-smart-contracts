@@ -4,9 +4,28 @@
 
 import smartpy as sp
 
-# Import the multisignWalletContract module
+# Import the multisignWalletContract and managerContract modules
 multisignWalletContract = sp.io.import_script_from_url(
     "file:python/contracts/multisignWalletContract.py")
+
+
+class DummyContract(sp.Contract):
+    """This is a dummy contract to be used only for test purposes.
+
+    """
+
+    def __init__(self):
+        """Initializes the contract.
+
+        """
+        self.init(x=sp.nat(0))
+
+    @sp.entry_point
+    def update_x(self, x):
+        """Updates the x value.
+
+        """
+        self.data.x = x
 
 
 def get_test_environment():
@@ -294,3 +313,45 @@ def test_expired_proposal():
     # Check that the execution fails because the proposal time has expired
     scenario += multisign.execute_proposal(1).run(
         valid=False, sender=user3, now=sp.timestamp(1000).add_days(4))
+
+
+@sp.add_test(name="Test execute lambda proposal")
+def test_execute_lambda_proposal():
+    # Get the test environment
+    testEnvironment = get_test_environment()
+    scenario = testEnvironment["scenario"]
+    user1 = testEnvironment["user1"]
+    user2 = testEnvironment["user2"]
+    user3 = testEnvironment["user3"]
+    user4 = testEnvironment["user4"]
+    multisign = testEnvironment["multisign"]
+
+    # Initialize the dummy contract and add it to the scenario
+    dummyContract = DummyContract()
+    scenario += dummyContract
+
+    # Define the lambda function that will update dummy contract
+    def dummy_lambda_function(params):
+        sp.set_type(params, sp.TUnit)
+        dummyContractHandle = sp.contract(sp.TNat, dummyContract.address, "update_x").open_some()
+        sp.transfer(sp.nat(2), sp.mutez(0), dummyContractHandle)
+
+    lambda_function = sp.build_lambda(dummy_lambda_function)
+
+    # Add a execute lambda proposal
+    scenario += multisign.execute_lambda_proposal(lambda_function).run(sender=user4)
+
+    # Vote for the proposal
+    scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(sender=user1)
+    scenario += multisign.vote_proposal(proposal_id=0, approval=False).run(sender=user2)
+    scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(sender=user3)
+    scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(sender=user4)
+
+    # Execute the proposal
+    scenario += multisign.execute_proposal(0).run(sender=user3)
+
+    # Check that the proposal is listed as executed
+    scenario.verify(multisign.data.proposals[0].executed)
+
+    # Check that user1 is the new manager of the manager contract
+    scenario.verify(dummyContract.data.x == 2)
