@@ -18,7 +18,7 @@ class DummyContract(sp.Contract):
         """Initializes the contract.
 
         """
-        self.init(x=sp.nat(0))
+        self.init(x=sp.nat(0), y=sp.nat(0))
 
     @sp.entry_point
     def update_x(self, x):
@@ -26,6 +26,13 @@ class DummyContract(sp.Contract):
 
         """
         self.data.x = x
+
+    @sp.entry_point
+    def update_y(self, y):
+        """Updates the y value.
+
+        """
+        self.data.y = y
 
 
 def get_test_environment():
@@ -334,12 +341,10 @@ def test_execute_lambda_proposal():
     def dummy_lambda_function(params):
         sp.set_type(params, sp.TUnit)
         dummyContractHandle = sp.contract(sp.TNat, dummyContract.address, "update_x").open_some()
-        sp.transfer(sp.nat(2), sp.mutez(0), dummyContractHandle)
-
-    lambda_function = sp.build_lambda(dummy_lambda_function)
+        sp.result([sp.transfer_operation(sp.nat(2), sp.mutez(0), dummyContractHandle)])
 
     # Add a execute lambda proposal
-    scenario += multisign.execute_lambda_proposal(lambda_function).run(sender=user4)
+    scenario += multisign.execute_lambda_proposal(dummy_lambda_function).run(sender=user4)
 
     # Vote for the proposal
     scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(sender=user1)

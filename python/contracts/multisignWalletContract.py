@@ -52,7 +52,7 @@ class MultisignWalletContract(sp.Contract):
         # The address of the user to add or remove (only used in add_user and remove_user proposals)
         user=sp.TOption(sp.TAddress),
         # The lambda function to execute (only used in execute_lambda proposals)
-        lambda_function=sp.TOption(sp.TLambda(sp.TUnit, sp.TUnit))).layout((
+        lambda_function=sp.TOption(sp.TLambda(sp.TUnit, sp.TList(sp.TOperation)))).layout((
             "type", (
                 "executed", (
                     "issuer", (
@@ -327,7 +327,7 @@ class MultisignWalletContract(sp.Contract):
         """
         # Define the input parameter data type
         sp.set_type(lambda_function,
-                    sp.TLambda(sp.TUnit, sp.TUnit))
+                    sp.TLambda(sp.TUnit, sp.TList(sp.TOperation)))
 
         # Check that one of the users executed the entry point
         self.check_is_user()
@@ -447,7 +447,8 @@ class MultisignWalletContract(sp.Contract):
                 self.data.minimum_votes = sp.len(self.data.users.elements())
 
         sp.if proposal.type == "execute_lambda":
-            proposal.lambda_function.open_some()(sp.none)
+            operations = proposal.lambda_function.open_some()(sp.unit)
+            sp.add_operations(operations)
 
         # Set the proposal as executed
         proposal.executed = True
