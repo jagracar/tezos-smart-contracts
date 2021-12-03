@@ -111,6 +111,33 @@ class MultisignWalletContract(sp.Contract):
         has_expired = sp.now > proposal.timestamp.add_days(sp.to_int(self.data.expiration_time))
         sp.verify(~has_expired, message="The proposal has expired")
 
+    def add_proposal(self, type, mutez_amount=sp.none, token_contract=sp.none,
+                     token_id=sp.none, token_amount=sp.none,
+                     destination=sp.none, minimum_votes=sp.none,
+                     expiration_time=sp.none, user=sp.none, lambda_function=sp.none):
+        """Adds a new proposal to the proposals big map.
+
+        """
+        # Update the proposals bigmap with the new proposal information
+        self.data.proposals[self.data.counter] = sp.record(
+            type=type,
+            executed=False,
+            issuer=sp.sender,
+            timestamp=sp.now,
+            positive_votes=0,
+            mutez_amount=mutez_amount,
+            token_contract=token_contract,
+            token_id=token_id,
+            token_amount=token_amount,
+            destination=destination,
+            minimum_votes=minimum_votes,
+            expiration_time=expiration_time,
+            user=user,
+            lambda_function=lambda_function)
+
+        # Increase the proposals counter
+        self.data.counter += 1
+
     @sp.entry_point
     def default(self, unit):
         """Default entrypoint that allows receiving tez and token transfers in
@@ -136,25 +163,10 @@ class MultisignWalletContract(sp.Contract):
         # Check that one of the users executed the entry point
         self.check_is_user()
 
-        # Update the proposals bigmap with the new proposal information
-        self.data.proposals[self.data.counter] = sp.record(
-            type="transfer_mutez",
-            executed=False,
-            issuer=sp.sender,
-            timestamp=sp.now,
-            positive_votes=0,
-            mutez_amount=sp.some(params.mutez_amount),
-            token_contract=sp.none,
-            token_id=sp.none,
-            token_amount=sp.none,
-            destination=sp.some(params.destination),
-            minimum_votes=sp.none,
-            expiration_time=sp.none,
-            user=sp.none,
-            lambda_function=sp.none)
-
-        # Increase the proposals counter
-        self.data.counter += 1
+        # Add the proposal
+        self.add_proposal("transfer_mutez",
+                          mutez_amount=sp.some(params.mutez_amount),
+                          destination=sp.some(params.destination))
 
     @sp.entry_point
     def transfer_token_proposal(self, params):
@@ -172,25 +184,12 @@ class MultisignWalletContract(sp.Contract):
         # Check that one of the users executed the entry point
         self.check_is_user()
 
-        # Update the proposals bigmap with the new proposal information
-        self.data.proposals[self.data.counter] = sp.record(
-            type="transfer_token",
-            executed=False,
-            issuer=sp.sender,
-            timestamp=sp.now,
-            positive_votes=0,
-            mutez_amount=sp.none,
-            token_contract=sp.some(params.token_contract),
-            token_id=sp.some(params.token_id),
-            token_amount=sp.some(params.token_amount),
-            destination=sp.some(params.destination),
-            minimum_votes=sp.none,
-            expiration_time=sp.none,
-            user=sp.none,
-            lambda_function=sp.none)
-
-        # Increase the proposals counter
-        self.data.counter += 1
+        # Add the proposal
+        self.add_proposal("transfer_token",
+                          token_contract=sp.some(params.token_contract),
+                          token_id=sp.some(params.token_id),
+                          token_amount=sp.some(params.token_amount),
+                          destination=sp.some(params.destination))
 
     @sp.entry_point
     def minimum_votes_proposal(self, minimum_votes):
@@ -207,25 +206,9 @@ class MultisignWalletContract(sp.Contract):
         sp.verify(minimum_votes >= 1,
                   message="The minimum_votes parameter cannot be smaller than 1")
 
-        # Update the proposals bigmap with the new proposal information
-        self.data.proposals[self.data.counter] = sp.record(
-            type="minimum_votes",
-            executed=False,
-            issuer=sp.sender,
-            timestamp=sp.now,
-            positive_votes=0,
-            mutez_amount=sp.none,
-            token_contract=sp.none,
-            token_id=sp.none,
-            token_amount=sp.none,
-            destination=sp.none,
-            minimum_votes=sp.some(minimum_votes),
-            expiration_time=sp.none,
-            user=sp.none,
-            lambda_function=sp.none)
-
-        # Increase the proposals counter
-        self.data.counter += 1
+        # Add the proposal
+        self.add_proposal("minimum_votes",
+                          minimum_votes=sp.some(minimum_votes))
 
     @sp.entry_point
     def expiration_time_proposal(self, expiration_time):
@@ -242,25 +225,9 @@ class MultisignWalletContract(sp.Contract):
         sp.verify(expiration_time >= 1,
                   message="The expiration_time parameter cannot be smaller than 1 day")
 
-        # Update the proposals bigmap with the new proposal information
-        self.data.proposals[self.data.counter] = sp.record(
-            type="expiration_time",
-            executed=False,
-            issuer=sp.sender,
-            timestamp=sp.now,
-            positive_votes=0,
-            mutez_amount=sp.none,
-            token_contract=sp.none,
-            token_id=sp.none,
-            token_amount=sp.none,
-            destination=sp.none,
-            minimum_votes=sp.none,
-            expiration_time=sp.some(expiration_time),
-            user=sp.none,
-            lambda_function=sp.none)
-
-        # Increase the proposals counter
-        self.data.counter += 1
+        # Add the proposal
+        self.add_proposal("expiration_time",
+                          expiration_time=sp.some(expiration_time))
 
     @sp.entry_point
     def add_user_proposal(self, user):
@@ -277,25 +244,8 @@ class MultisignWalletContract(sp.Contract):
         sp.verify(~self.data.users.contains(user),
                   message="The proposed address is in the users list")
 
-        # Update the proposals bigmap with the new proposal information
-        self.data.proposals[self.data.counter] = sp.record(
-            type="add_user",
-            executed=False,
-            issuer=sp.sender,
-            timestamp=sp.now,
-            positive_votes=0,
-            mutez_amount=sp.none,
-            token_contract=sp.none,
-            token_id=sp.none,
-            token_amount=sp.none,
-            destination=sp.none,
-            minimum_votes=sp.none,
-            expiration_time=sp.none,
-            user=sp.some(user),
-            lambda_function=sp.none)
-
-        # Increase the proposals counter
-        self.data.counter += 1
+        # Add the proposal
+        self.add_proposal("add_user", user=sp.some(user))
 
     @sp.entry_point
     def remove_user_proposal(self, user):
@@ -312,25 +262,8 @@ class MultisignWalletContract(sp.Contract):
         sp.verify(self.data.users.contains(user),
                   message="The proposed address is not in the users list")
 
-        # Update the proposals bigmap with the new proposal information
-        self.data.proposals[self.data.counter] = sp.record(
-            type="remove_user",
-            executed=False,
-            issuer=sp.sender,
-            timestamp=sp.now,
-            positive_votes=0,
-            mutez_amount=sp.none,
-            token_contract=sp.none,
-            token_id=sp.none,
-            token_amount=sp.none,
-            destination=sp.none,
-            minimum_votes=sp.none,
-            expiration_time=sp.none,
-            user=sp.some(user),
-            lambda_function=sp.none)
-
-        # Increase the proposals counter
-        self.data.counter += 1
+        # Add the proposal
+        self.add_proposal("remove_user", user=sp.some(user))
 
     @sp.entry_point
     def lambda_proposal(self, lambda_function):
@@ -344,25 +277,8 @@ class MultisignWalletContract(sp.Contract):
         # Check that one of the users executed the entry point
         self.check_is_user()
 
-        # Update the proposals bigmap with the new proposal information
-        self.data.proposals[self.data.counter] = sp.record(
-            type="lambda",
-            executed=False,
-            issuer=sp.sender,
-            timestamp=sp.now,
-            positive_votes=0,
-            mutez_amount=sp.none,
-            token_contract=sp.none,
-            token_id=sp.none,
-            token_amount=sp.none,
-            destination=sp.none,
-            minimum_votes=sp.none,
-            expiration_time=sp.none,
-            user=sp.none,
-            lambda_function=sp.some(lambda_function))
-
-        # Increase the proposals counter
-        self.data.counter += 1
+        # Add the proposal
+        self.add_proposal("lambda", lambda_function=sp.some(lambda_function))
 
     @sp.entry_point
     def vote_proposal(self, params):
