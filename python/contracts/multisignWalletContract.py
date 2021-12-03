@@ -18,13 +18,6 @@ class MultisignWalletContract(sp.Contract):
         - Remove one user from the contract.
         - Execute some arbitrary lambda function.
 
-    TBD:
-
-        Add a proposal to execute another contract entrypoint. This could be
-        used to collect an OBJKT using the collect entrypoint from the H=N
-        marketplace contract. The required tez would be taken from the wallet
-        and the OBJKT would be transferred to the multisign wallet contract.
-
     """
 
     PROPOSAL_TYPE = sp.TRecord(
@@ -36,6 +29,8 @@ class MultisignWalletContract(sp.Contract):
         issuer=sp.TAddress,
         # The time when the proposal was submitted
         timestamp=sp.TTimestamp,
+        # The number of positive votes that the proposal has received
+        positive_votes=sp.TNat,
         # The number of mutez to transfer (only used in transfer_mutez proposals)
         mutez_amount=sp.TOption(sp.TMutez),
         # The token contract address (only used in transfer_token proposals)
@@ -58,15 +53,16 @@ class MultisignWalletContract(sp.Contract):
                 "executed", (
                     "issuer", (
                         "timestamp", (
-                            "mutez_amount", (
-                                "token_contract", (
-                                    "token_id", (
-                                        "token_amount", (
-                                            "destination", (
-                                                "minimum_votes", (
-                                                    "expiration_time", (
-                                                        "user",
-                                                        "lambda_function")))))))))))))
+                            "positive_votes", (
+                                "mutez_amount", (
+                                    "token_contract", (
+                                        "token_id", (
+                                            "token_amount", (
+                                                "destination", (
+                                                    "minimum_votes", (
+                                                        "expiration_time", (
+                                                            "user",
+                                                            "lambda_function"))))))))))))))
     """The proposal type definition."""
 
     def __init__(self, users, minimum_votes, expiration_time=sp.nat(5)):
@@ -99,11 +95,20 @@ class MultisignWalletContract(sp.Contract):
         sp.verify(self.data.users.contains(sp.sender),
                   message="This can only be executed by one of the wallet users")
 
-    def check_proposal_has_not_expired(self, proposal_id):
-        """Checks that the proposal has not expired.
+    def check_proposal_is_valid(self, proposal_id):
+        """Checks that the proposal_id is from a valid proposal.
 
         """
-        has_expired = sp.now > self.data.proposals[proposal_id].timestamp.add_days(sp.to_int(self.data.expiration_time))
+        # Check that the proposal id is present in the proposals big map
+        sp.verify(self.data.proposals.contains(proposal_id),
+                  message="The proposal doesn't exist")
+
+        # Check that the proposal has not been executed
+        proposal = self.data.proposals[proposal_id]
+        sp.verify(~proposal.executed, message="The proposal has been executed")
+
+        # Check that the proposal has not expired
+        has_expired = sp.now > proposal.timestamp.add_days(sp.to_int(self.data.expiration_time))
         sp.verify(~has_expired, message="The proposal has expired")
 
     @sp.entry_point
@@ -137,6 +142,7 @@ class MultisignWalletContract(sp.Contract):
             executed=False,
             issuer=sp.sender,
             timestamp=sp.now,
+            positive_votes=0,
             mutez_amount=sp.some(params.mutez_amount),
             token_contract=sp.none,
             token_id=sp.none,
@@ -172,6 +178,7 @@ class MultisignWalletContract(sp.Contract):
             executed=False,
             issuer=sp.sender,
             timestamp=sp.now,
+            positive_votes=0,
             mutez_amount=sp.none,
             token_contract=sp.some(params.token_contract),
             token_id=sp.some(params.token_id),
@@ -206,6 +213,7 @@ class MultisignWalletContract(sp.Contract):
             executed=False,
             issuer=sp.sender,
             timestamp=sp.now,
+            positive_votes=0,
             mutez_amount=sp.none,
             token_contract=sp.none,
             token_id=sp.none,
@@ -240,6 +248,7 @@ class MultisignWalletContract(sp.Contract):
             executed=False,
             issuer=sp.sender,
             timestamp=sp.now,
+            positive_votes=0,
             mutez_amount=sp.none,
             token_contract=sp.none,
             token_id=sp.none,
@@ -274,6 +283,7 @@ class MultisignWalletContract(sp.Contract):
             executed=False,
             issuer=sp.sender,
             timestamp=sp.now,
+            positive_votes=0,
             mutez_amount=sp.none,
             token_contract=sp.none,
             token_id=sp.none,
@@ -308,6 +318,7 @@ class MultisignWalletContract(sp.Contract):
             executed=False,
             issuer=sp.sender,
             timestamp=sp.now,
+            positive_votes=0,
             mutez_amount=sp.none,
             token_contract=sp.none,
             token_id=sp.none,
@@ -339,6 +350,7 @@ class MultisignWalletContract(sp.Contract):
             executed=False,
             issuer=sp.sender,
             timestamp=sp.now,
+            positive_votes=0,
             mutez_amount=sp.none,
             token_contract=sp.none,
             token_id=sp.none,
@@ -365,16 +377,19 @@ class MultisignWalletContract(sp.Contract):
         # Check that one of the users executed the entry point
         self.check_is_user()
 
-        # Check that the proposal id is present in the proposals big map
-        sp.verify(self.data.proposals.contains(params.proposal_id),
-                  message="The proposal doesn't exist")
+        # Check that is a valid proposal
+        self.check_proposal_is_valid(params.proposal_id)
 
-        # Check that the proposal has not been executed
-        sp.verify(~self.data.proposals[params.proposal_id].executed,
-                  message="The proposal has been executed")
+        # Check if the user voted positive before and remove their previous vote
+        # from the proposal positive votes counter
+        proposal = self.data.proposals[params.proposal_id]
 
-        # Check that the proposal has not expired
-        self.check_proposal_has_not_expired(params.proposal_id)
+        sp.if self.data.votes.get((params.proposal_id, sp.sender), default_value=False):
+            proposal.positive_votes = sp.as_nat(proposal.positive_votes - 1)
+
+        # Add the vote to the proposal positive votes counter if it's positive
+        sp.if params.approval:
+            proposal.positive_votes += 1
 
         # Add or update the users vote
         self.data.votes[(params.proposal_id, sp.sender)] = params.approval
@@ -390,30 +405,15 @@ class MultisignWalletContract(sp.Contract):
         # Check that one of the users executed the entry point
         self.check_is_user()
 
-        # Check that the proposal id is present in the proposals big map
-        sp.verify(self.data.proposals.contains(proposal_id),
-                  message="The proposal doesn't exist")
-
-        # Check that the proposal has not been executed
-        sp.verify(~self.data.proposals[proposal_id].executed,
-                  message="The proposal has been executed")
-
-        # Check that the proposal has not expired
-        self.check_proposal_has_not_expired(proposal_id)
-
-        # Count the proposal total number of positive votes
-        totalVotes = sp.local("totalVotes", 0, sp.TNat)
-
-        sp.for user in self.data.users.elements():
-            sp.if self.data.votes.get((proposal_id, user), default_value=False):
-                totalVotes.value += 1
+        # Check that is a valid proposal
+        self.check_proposal_is_valid(proposal_id)
 
         # Check that the proposal received enough positive votes
-        sp.verify(totalVotes.value >= self.data.minimum_votes,
+        proposal = self.data.proposals[proposal_id]
+        sp.verify(proposal.positive_votes >= self.data.minimum_votes,
                   message="The proposal didn't receive enough positive votes")
 
         # Execute the proposal
-        proposal = self.data.proposals[proposal_id]
         proposal.executed = True
 
         sp.if proposal.type == "transfer_mutez":
