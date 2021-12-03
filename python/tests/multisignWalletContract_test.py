@@ -322,8 +322,8 @@ def test_expired_proposal():
         valid=False, sender=user3, now=sp.timestamp(1000).add_days(4))
 
 
-@sp.add_test(name="Test execute lambda proposal")
-def test_execute_lambda_proposal():
+@sp.add_test(name="Test lambda proposal")
+def test_lambda_proposal():
     # Get the test environment
     testEnvironment = get_test_environment()
     scenario = testEnvironment["scenario"]
@@ -337,14 +337,14 @@ def test_execute_lambda_proposal():
     dummyContract = DummyContract()
     scenario += dummyContract
 
-    # Define the lambda function that will update dummy contract
+    # Define the lambda function that will update the dummy contract
     def dummy_lambda_function(params):
         sp.set_type(params, sp.TUnit)
         dummyContractHandle = sp.contract(sp.TNat, dummyContract.address, "update_x").open_some()
         sp.result([sp.transfer_operation(sp.nat(2), sp.mutez(0), dummyContractHandle)])
 
-    # Add a execute lambda proposal
-    scenario += multisign.execute_lambda_proposal(dummy_lambda_function).run(sender=user4)
+    # Add a lambda proposal
+    scenario += multisign.lambda_proposal(dummy_lambda_function).run(sender=user4)
 
     # Vote for the proposal
     scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(sender=user1)
@@ -358,5 +358,5 @@ def test_execute_lambda_proposal():
     # Check that the proposal is listed as executed
     scenario.verify(multisign.data.proposals[0].executed)
 
-    # Check that user1 is the new manager of the manager contract
+    # Check that dumy contract storage has been updated to the correct vale
     scenario.verify(dummyContract.data.x == 2)

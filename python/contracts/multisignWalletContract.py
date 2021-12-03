@@ -16,6 +16,7 @@ class MultisignWalletContract(sp.Contract):
         - Change the expiration time parameter.
         - Add a new user to the contract.
         - Remove one user from the contract.
+        - Execute some arbitrary lambda function.
 
     TBD:
 
@@ -321,8 +322,8 @@ class MultisignWalletContract(sp.Contract):
         self.data.counter += 1
 
     @sp.entry_point
-    def execute_lambda_proposal(self, lambda_function):
-        """Adds a new execute lambda proposal to the proposals big map.
+    def lambda_proposal(self, lambda_function):
+        """Adds a new lambda proposal to the proposals big map.
 
         """
         # Define the input parameter data type
@@ -334,7 +335,7 @@ class MultisignWalletContract(sp.Contract):
 
         # Update the proposals bigmap with the new proposal information
         self.data.proposals[self.data.counter] = sp.record(
-            type="execute_lambda",
+            type="lambda",
             executed=False,
             issuer=sp.sender,
             timestamp=sp.now,
@@ -413,6 +414,7 @@ class MultisignWalletContract(sp.Contract):
 
         # Execute the proposal
         proposal = self.data.proposals[proposal_id]
+        proposal.executed = True
 
         sp.if proposal.type == "transfer_mutez":
             sp.send(proposal.destination.open_some(),
@@ -446,12 +448,9 @@ class MultisignWalletContract(sp.Contract):
             sp.if self.data.minimum_votes > sp.len(self.data.users.elements()):
                 self.data.minimum_votes = sp.len(self.data.users.elements())
 
-        sp.if proposal.type == "execute_lambda":
+        sp.if proposal.type == "lambda":
             operations = proposal.lambda_function.open_some()(sp.unit)
             sp.add_operations(operations)
-
-        # Set the proposal as executed
-        proposal.executed = True
 
     def fa2_transfer(self, fa2, from_, to_, token_id, token_amount):
         """Transfers a number of editions of a FA2 token between to addresses.
