@@ -169,6 +169,10 @@ class BarterContract(sp.Contract):
             # Accept the trade
             trade.user2_accepted = True
 
+            # Check that the user didn't transfer any tez
+            sp.verify(sp.amount == sp.mutez(0),
+                      message="The sent tez amount does not coincide trade proposal amount")
+
             # Transfer all the editions to the barter account
             sp.for token in trade.proposal.tokens2:
                 self.fa2_transfer(

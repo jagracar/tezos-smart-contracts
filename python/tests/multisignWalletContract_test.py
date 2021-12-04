@@ -4,7 +4,7 @@
 
 import smartpy as sp
 
-# Import the multisignWalletContract and managerContract modules
+# Import the multisignWalletContract module
 multisignWalletContract = sp.io.import_script_from_url(
     "file:python/contracts/multisignWalletContract.py")
 
