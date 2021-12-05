@@ -35,7 +35,7 @@ class BarterContract(sp.Contract):
         # Define the contract storage data types for clarity
         self.init_type(sp.TRecord(
             manager=sp.TAddress,
-            allowed_fa2s=sp.TSet(sp.TAddress),
+            allowed_fa2s=sp.TBigMap(sp.TAddress, sp.TBool),
             trades=sp.TBigMap(sp.TNat, sp.TRecord(
                 user1_accepted=sp.TBool,
                 user2_accepted=sp.TBool,
@@ -97,7 +97,7 @@ class BarterContract(sp.Contract):
         # Loop over the first user token list
         sp.for token in trade_proposal.tokens1:
             # Check that the token is one of the allowed tokens to trade
-            sp.verify(self.data.allowed_fa2s.contains(token.fa2),
+            sp.verify(self.data.allowed_fa2s.get(token.fa2, default_value=False),
                       message="This token type cannot be traded")
 
             # Check that at least one edition will be traded
@@ -107,7 +107,7 @@ class BarterContract(sp.Contract):
         # Loop over the second user token list
         sp.for token in trade_proposal.tokens2:
             # Check that the token is one of the allowed tokens to trade
-            sp.verify(self.data.allowed_fa2s.contains(token.fa2),
+            sp.verify(self.data.allowed_fa2s.get(token.fa2, default_value=False),
                       message="This token type cannot be traded")
 
             # Check that at least one edition will be traded
@@ -294,7 +294,7 @@ class BarterContract(sp.Contract):
         self.data.manager = manager
 
     @sp.entry_point
-    def add_fa2_address(self, fa2):
+    def add_fa2(self, fa2):
         """Adds a new FA2 token address to the list of tradable tokens.
 
         """
@@ -304,11 +304,11 @@ class BarterContract(sp.Contract):
         # Check that the manager executed the entry point
         self.check_is_manager()
 
-        # Add the new FA2 token address
-        self.data.allowed_fa2s.add(fa2)
+        # Add the new FA2 token
+        self.data.allowed_fa2s[fa2] = True
 
     @sp.entry_point
-    def remove_fa2_address(self, fa2):
+    def remove_fa2(self, fa2):
         """Removes one of the tradable FA2 token address.
 
         """
@@ -318,12 +318,8 @@ class BarterContract(sp.Contract):
         # Check that the manager executed the entry point
         self.check_is_manager()
 
-        # Check that the FA2 token address is present in the set
-        sp.verify(self.data.allowed_fa2s.contains(fa2),
-                  message="The FA2 token is not present in the list of tradable tokens.")
-
-        # Remove the new FA2 token address from the set
-        self.data.allowed_fa2s.remove(fa2)
+        # Dissable the FA2 token address
+        self.data.allowed_fa2s[fa2] = False
 
     def fa2_transfer(self, fa2, from_, to_, token_id, token_amount):
         """Transfers a number of editions of a FA2 token between to addresses.
@@ -355,4 +351,4 @@ class BarterContract(sp.Contract):
 # Add a compilation target initialized to a test account and the OBJKT FA2 contract
 sp.add_compilation_target("barter", BarterContract(
     manager=sp.address("tz1gnL9CeM5h5kRzWZztFYLypCNnVQZjndBN"),
-    allowed_fa2s=sp.set([sp.address("KT1RJ6PbjHpwc3M5rw5s2Nbmefwbuwbdxton")])))
+    allowed_fa2s=sp.big_map({sp.address("KT1RJ6PbjHpwc3M5rw5s2Nbmefwbuwbdxton"): True})))
