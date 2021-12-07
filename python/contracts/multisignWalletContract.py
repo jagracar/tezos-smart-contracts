@@ -369,7 +369,7 @@ class MultisignWalletContract(sp.Contract):
             sp.add_operations(operations)
 
     def fa2_transfer(self, fa2, from_, to_, token_id, token_amount):
-        """Transfers a number of editions of a FA2 token between to addresses.
+        """Transfers a number of editions of a FA2 token between two addresses.
 
         """
         # Get a handle to the FA2 token transfer entry point

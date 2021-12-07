@@ -1,7 +1,7 @@
 import smartpy as sp
 
 
-class BarterContract(sp.Contract):
+class SimpleBarterContract(sp.Contract):
     """This contract implements a simple barter contract where users can trade
     FA2 tokens and tez for other FA2 tokens.
 
@@ -20,43 +20,29 @@ class BarterContract(sp.Contract):
         user1=sp.TAddress,
         # The second user involved in the trade
         user2=sp.TAddress,
-        # The first user mutez to trade
-        mutez_amount=sp.TMutez,
         # The first user tokens to trade
         tokens1=sp.TList(TOKEN_TYPE),
         # The second user tokens to trade
         tokens2=sp.TList(TOKEN_TYPE)).layout(
-            ("user1", ("user2", ("mutez_amount", ("tokens1", "tokens2")))))
+            ("user1", ("user2", ("tokens1", "tokens2"))))
 
-    def __init__(self, manager, allowed_fa2s):
+    def __init__(self):
         """Initializes the contract.
 
         """
         # Define the contract storage data types for clarity
         self.init_type(sp.TRecord(
-            manager=sp.TAddress,
-            allowed_fa2s=sp.TBigMap(sp.TAddress, sp.TBool),
             trades=sp.TBigMap(sp.TNat, sp.TRecord(
                 user1_accepted=sp.TBool,
                 user2_accepted=sp.TBool,
                 executed=sp.TBool,
-                proposal=BarterContract.TRADE_PROPOSAL_TYPE)),
+                proposal=SimpleBarterContract.TRADE_PROPOSAL_TYPE)),
             counter=sp.TNat))
 
         # Initialize the contract storage
         self.init(
-            manager=manager,
-            allowed_fa2s=allowed_fa2s,
             trades=sp.big_map(),
             counter=0)
-
-    def check_is_manager(self):
-        """Checks that the address that called the entry point is the contract
-        manager.
-
-        """
-        sp.verify(sp.sender == self.data.manager,
-                  message="This can only be executed by the contract manager")
 
     def check_is_user(self, trade_proposal):
         """Checks that the address that called the entry point is one of the
@@ -92,7 +78,7 @@ class BarterContract(sp.Contract):
 
         """
         # Define the input parameter data type
-        sp.set_type(trade_proposal, BarterContract.TRADE_PROPOSAL_TYPE)
+        sp.set_type(trade_proposal, SimpleBarterContract.TRADE_PROPOSAL_TYPE)
 
         # Check that the trade proposal comes from one of the users
         self.check_is_user(trade_proposal)
@@ -106,20 +92,12 @@ class BarterContract(sp.Contract):
 
         # Loop over the first user token list
         sp.for token in trade_proposal.tokens1:
-            # Check that the token is one of the allowed tokens to trade
-            sp.verify(self.data.allowed_fa2s.get(token.fa2, default_value=False),
-                      message="This token type cannot be traded")
-
             # Check that at least one edition will be traded
             sp.verify(token.amount >= 0,
                       message="At least one token edition needs to be traded")
 
         # Loop over the second user token list
         sp.for token in trade_proposal.tokens2:
-            # Check that the token is one of the allowed tokens to trade
-            sp.verify(self.data.allowed_fa2s.get(token.fa2, default_value=False),
-                      message="This token type cannot be traded")
-
             # Check that at least one edition will be traded
             sp.verify(token.amount >= 0,
                       message="At least one token edition needs to be traded")
@@ -142,6 +120,9 @@ class BarterContract(sp.Contract):
         # Define the input parameter data type
         sp.set_type(trade_id, sp.TNat)
 
+        # Check that no tez have been transferred
+        self.check_no_tez_transfer()
+
         # Check that the trade was not executed before
         self.check_trade_not_executed(trade_id)
 
@@ -149,7 +130,7 @@ class BarterContract(sp.Contract):
         trade = self.data.trades[trade_id]
         self.check_is_user(trade.proposal)
 
-        # Transfer the tez and tokens to the barter account
+        # Transfer the tokens to the barter account
         sp.if sp.sender == trade.proposal.user1:
             # Check that the user didn't accept the trade before
             sp.verify(~trade.user1_accepted,
@@ -157,11 +138,6 @@ class BarterContract(sp.Contract):
 
             # Accept the trade
             trade.user1_accepted = True
-
-            # Check that the sent tez coincide with what was specified in the
-            # trade proposal
-            sp.verify(sp.amount == trade.proposal.mutez_amount,
-                      message="The sent tez amount does not coincide trade proposal amount")
 
             # Transfer all the editions to the barter account
             sp.for token in trade.proposal.tokens1:
@@ -178,9 +154,6 @@ class BarterContract(sp.Contract):
 
             # Accept the trade
             trade.user2_accepted = True
-
-            # Check that the user didn't transfer any tez
-            self.check_no_tez_transfer()
 
             # Transfer all the editions to the barter account
             sp.for token in trade.proposal.tokens2:
@@ -209,7 +182,7 @@ class BarterContract(sp.Contract):
         trade = self.data.trades[trade_id]
         self.check_is_user(trade.proposal)
 
-        # Transfer the tez and tokens to the user adddress
+        # Transfer the tokens to the user adddress
         sp.if sp.sender == trade.proposal.user1:
             # Check that the user accepted the trade before
             sp.verify(trade.user1_accepted,
@@ -217,10 +190,6 @@ class BarterContract(sp.Contract):
 
             # Change the status to not accepted
             trade.user1_accepted = False
-
-            # Transfer the tez to the user
-            sp.if trade.proposal.mutez_amount != sp.mutez(0):
-                sp.send(sp.sender, trade.proposal.mutez_amount)
 
             # Return all the editions to the user account
             sp.for token in trade.proposal.tokens1:
@@ -272,10 +241,6 @@ class BarterContract(sp.Contract):
         # Set the trade as executed
         trade.executed = True
 
-        # Transfer the tez to the second user
-        sp.if trade.proposal.mutez_amount != sp.mutez(0):
-            sp.send(trade.proposal.user2, trade.proposal.mutez_amount)
-
         # Transfer the first user tokens to the second user
         sp.for token in trade.proposal.tokens1:
             self.fa2_transfer(
@@ -293,57 +258,6 @@ class BarterContract(sp.Contract):
                 to_=trade.proposal.user1,
                 token_id=token.id,
                 token_amount=token.amount)
-
-    @sp.entry_point
-    def update_manager(self, manager):
-        """Updates the barter manager address.
-
-        """
-        # Define the input parameter data type
-        sp.set_type(manager, sp.TAddress)
-
-        # Check that the manager executed the entry point
-        self.check_is_manager()
-
-        # Check that no tez have been transferred
-        self.check_no_tez_transfer()
-
-        # Set the new manager address
-        self.data.manager = manager
-
-    @sp.entry_point
-    def add_fa2(self, fa2):
-        """Adds a new FA2 token address to the list of tradable tokens.
-
-        """
-        # Define the input parameter data type
-        sp.set_type(fa2, sp.TAddress)
-
-        # Check that the manager executed the entry point
-        self.check_is_manager()
-
-        # Check that no tez have been transferred
-        self.check_no_tez_transfer()
-
-        # Add the new FA2 token
-        self.data.allowed_fa2s[fa2] = True
-
-    @sp.entry_point
-    def remove_fa2(self, fa2):
-        """Removes one of the tradable FA2 token address.
-
-        """
-        # Define the input parameter data type
-        sp.set_type(fa2, sp.TAddress)
-
-        # Check that the manager executed the entry point
-        self.check_is_manager()
-
-        # Check that no tez have been transferred
-        self.check_no_tez_transfer()
-
-        # Dissable the FA2 token address
-        self.data.allowed_fa2s[fa2] = False
 
     def fa2_transfer(self, fa2, from_, to_, token_id, token_amount):
         """Transfers a number of editions of a FA2 token between two addresses.
@@ -372,7 +286,5 @@ class BarterContract(sp.Contract):
             destination=c)
 
 
-# Add a compilation target initialized to a test account and the OBJKT FA2 contract
-sp.add_compilation_target("barter", BarterContract(
-    manager=sp.address("tz1gnL9CeM5h5kRzWZztFYLypCNnVQZjndBN"),
-    allowed_fa2s=sp.big_map({sp.address("KT1RJ6PbjHpwc3M5rw5s2Nbmefwbuwbdxton"): True})))
+# Add a compilation target
+sp.add_compilation_target("simpleBarter", SimpleBarterContract())
