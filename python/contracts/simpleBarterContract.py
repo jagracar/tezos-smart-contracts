@@ -3,28 +3,32 @@ import smartpy as sp
 
 class SimpleBarterContract(sp.Contract):
     """This contract implements a simple barter contract where users can trade
-    FA2 tokens and tez for other FA2 tokens.
+    FA2 tokens for other FA2 tokens.
 
     """
 
-    TOKEN_TYPE = sp.TRecord(
+    TOKEN_LIST_TYPE = sp.TList(sp.TRecord(
         # The FA2 token contract address
         fa2=sp.TAddress,
         # The FA2 token id
         id=sp.TNat,
         # The number of editions to trade
-        amount=sp.TNat).layout(("fa2", ("id", "amount")))
+        amount=sp.TNat).layout(("fa2", ("id", "amount"))))
 
-    TRADE_PROPOSAL_TYPE = sp.TRecord(
+    TRADE_TYPE = sp.TRecord(
+        # Flag to indicate if the trade has been exectuded
+        executed=sp.TBool,
+        # Flag to indicate if the trade has been cancelled
+        cancelled=sp.TBool,
         # The first user involved in the trade
         user1=sp.TAddress,
         # The second user involved in the trade
-        user2=sp.TAddress,
+        user2=sp.TOption(sp.TAddress),
         # The first user tokens to trade
-        tokens1=sp.TList(TOKEN_TYPE),
+        tokens1=TOKEN_LIST_TYPE,
         # The second user tokens to trade
-        tokens2=sp.TList(TOKEN_TYPE)).layout(
-            ("user1", ("user2", ("tokens1", "tokens2"))))
+        tokens2=TOKEN_LIST_TYPE).layout(
+            ("executed", ("cancelled", ("user1", ("user2", ("tokens1", "tokens2"))))))
 
     def __init__(self):
         """Initializes the contract.
@@ -32,25 +36,13 @@ class SimpleBarterContract(sp.Contract):
         """
         # Define the contract storage data types for clarity
         self.init_type(sp.TRecord(
-            trades=sp.TBigMap(sp.TNat, sp.TRecord(
-                user1_accepted=sp.TBool,
-                user2_accepted=sp.TBool,
-                executed=sp.TBool,
-                proposal=SimpleBarterContract.TRADE_PROPOSAL_TYPE)),
+            trades=sp.TBigMap(sp.TNat, SimpleBarterContract.TRADE_TYPE),
             counter=sp.TNat))
 
         # Initialize the contract storage
         self.init(
             trades=sp.big_map(),
             counter=0)
-
-    def check_is_user(self, trade_proposal):
-        """Checks that the address that called the entry point is one of the
-        users involved in the trade proposal.
-
-        """
-        sp.verify((sp.sender == trade_proposal.user1) | (sp.sender == trade_proposal.user2),
-                  message="This can only be executed by one of the trade users")
 
     def check_no_tez_transfer(self):
         """Checks that no tez were transferred in the operation.
@@ -59,18 +51,22 @@ class SimpleBarterContract(sp.Contract):
         sp.verify(sp.amount == sp.tez(0),
                   message="The operation does not need tez transfers")
 
-    def check_trade_not_executed(self, trade_id):
-        """Checks that the trade id corresponds to an existing trade that has
-        not been executed.
+    def check_trade_still_open(self, trade_id):
+        """Checks that the trade id corresponds to an existing trade and that
+        the trade is still open (not executed and not cancelled).
 
         """
         # Check that the trade id is present in the trades big map
         sp.verify(self.data.trades.contains(trade_id),
                   message="The provided trade id doesn't exist")
 
-        # Check that the trade was not executed before
+        # Check that the trade was not executed
         sp.verify(~self.data.trades[trade_id].executed,
-                  message="The trade was executed before")
+                  message="The trade was executed")
+
+        # Check that the trade was not cancelled
+        sp.verify(~self.data.trades[trade_id].cancelled,
+                  message="The trade was cancelled")
 
     @sp.entry_point
     def propose_trade(self, trade_proposal):
@@ -78,184 +74,118 @@ class SimpleBarterContract(sp.Contract):
 
         """
         # Define the input parameter data type
-        sp.set_type(trade_proposal, SimpleBarterContract.TRADE_PROPOSAL_TYPE)
-
-        # Check that the trade proposal comes from one of the users
-        self.check_is_user(trade_proposal)
-
-        # Check that the two involved users are not the same wallet
-        sp.verify(trade_proposal.user1 != trade_proposal.user2,
-                  message="The users involved in the trade need to be different")
+        sp.set_type(trade_proposal, sp.TRecord(
+            tokens=SimpleBarterContract.TOKEN_LIST_TYPE,
+            for_tokens=SimpleBarterContract.TOKEN_LIST_TYPE,
+            with_user=sp.TOption(sp.TAddress)).layout(
+                ("tokens", ("for_tokens", "with_user"))))
 
         # Check that no tez have been transferred
         self.check_no_tez_transfer()
 
-        # Loop over the first user token list
-        sp.for token in trade_proposal.tokens1:
-            # Check that at least one edition will be traded
+        # Check that the trade will involve at least one edition of each token
+        sp.for token in trade_proposal.tokens:
             sp.verify(token.amount >= 0,
                       message="At least one token edition needs to be traded")
 
-        # Loop over the second user token list
-        sp.for token in trade_proposal.tokens2:
-            # Check that at least one edition will be traded
+        sp.for token in trade_proposal.for_tokens:
             sp.verify(token.amount >= 0,
                       message="At least one token edition needs to be traded")
+
+        # Transfer the proposed tokens to the barter account
+        self.transfer_tokens(
+            from_=sp.sender,
+            to_=sp.self_address,
+            tokens=trade_proposal.tokens)
 
         # Update the trades bigmap with the new trade information
         self.data.trades[self.data.counter] = sp.record(
-            user1_accepted=False,
-            user2_accepted=False,
             executed=False,
-            proposal=trade_proposal)
+            cancelled=False,
+            user1=sp.sender,
+            user2=trade_proposal.with_user,
+            tokens1=trade_proposal.tokens,
+            tokens2=trade_proposal.for_tokens)
 
         # Increase the trades counter
         self.data.counter += 1
 
     @sp.entry_point
     def accept_trade(self, trade_id):
-        """Accepts a trade.
+        """Accepts and executes a trade.
 
         """
         # Define the input parameter data type
         sp.set_type(trade_id, sp.TNat)
 
+        # Check that the trade is still open
+        self.check_trade_still_open(trade_id)
+
         # Check that no tez have been transferred
         self.check_no_tez_transfer()
 
-        # Check that the trade was not executed before
-        self.check_trade_not_executed(trade_id)
-
-        # Check that the sender is one of the trade users
+        # Check that the sender is the trade second user
         trade = self.data.trades[trade_id]
-        self.check_is_user(trade.proposal)
 
-        # Transfer the tokens to the barter account
-        sp.if sp.sender == trade.proposal.user1:
-            # Check that the user didn't accept the trade before
-            sp.verify(~trade.user1_accepted,
-                      message="The trade was accepted before")
-
-            # Accept the trade
-            trade.user1_accepted = True
-
-            # Transfer all the editions to the barter account
-            sp.for token in trade.proposal.tokens1:
-                self.fa2_transfer(
-                    fa2=token.fa2,
-                    from_=sp.sender,
-                    to_=sp.self_address,
-                    token_id=token.id,
-                    token_amount=token.amount)
+        sp.if trade.user2.is_some():
+            sp.verify(sp.sender == trade.user2.open_some(),
+                      message="Only user2 can accept the trade")
         sp.else:
-            # Check that the user didn't accept the trade before
-            sp.verify(~trade.user2_accepted,
-                      message="The trade was accepted before")
-
-            # Accept the trade
-            trade.user2_accepted = True
-
-            # Transfer all the editions to the barter account
-            sp.for token in trade.proposal.tokens2:
-                self.fa2_transfer(
-                    fa2=token.fa2,
-                    from_=sp.sender,
-                    to_=sp.self_address,
-                    token_id=token.id,
-                    token_amount=token.amount)
-
-    @sp.entry_point
-    def cancel_trade(self, trade_id):
-        """Cancels an already accepted trade.
-
-        """
-        # Define the input parameter data type
-        sp.set_type(trade_id, sp.TNat)
-
-        # Check that no tez have been transferred
-        self.check_no_tez_transfer()
-
-        # Check that the trade was not executed before
-        self.check_trade_not_executed(trade_id)
-
-        # Check that the sender is one of the trade users
-        trade = self.data.trades[trade_id]
-        self.check_is_user(trade.proposal)
-
-        # Transfer the tokens to the user adddress
-        sp.if sp.sender == trade.proposal.user1:
-            # Check that the user accepted the trade before
-            sp.verify(trade.user1_accepted,
-                      message="The trade was not accepted before")
-
-            # Change the status to not accepted
-            trade.user1_accepted = False
-
-            # Return all the editions to the user account
-            sp.for token in trade.proposal.tokens1:
-                self.fa2_transfer(
-                    fa2=token.fa2,
-                    from_=sp.self_address,
-                    to_=sp.sender,
-                    token_id=token.id,
-                    token_amount=token.amount)
-        sp.else:
-            # Check that the user accepted the trade before
-            sp.verify(trade.user2_accepted,
-                      message="The trade was not accepted before")
-
-            # Change the status to not accepted
-            trade.user2_accepted = False
-
-            # Return all the editions to the user account
-            sp.for token in trade.proposal.tokens2:
-                self.fa2_transfer(
-                    fa2=token.fa2,
-                    from_=sp.self_address,
-                    to_=sp.sender,
-                    token_id=token.id,
-                    token_amount=token.amount)
-
-    @sp.entry_point
-    def execute_trade(self, trade_id):
-        """Executes a trade.
-
-        """
-        # Define the input parameter data type
-        sp.set_type(trade_id, sp.TNat)
-
-        # Check that no tez have been transferred
-        self.check_no_tez_transfer()
-
-        # Check that the trade was not executed before
-        self.check_trade_not_executed(trade_id)
-
-        # Check that the sender is one of the trade users
-        trade = self.data.trades[trade_id]
-        self.check_is_user(trade.proposal)
-
-        # Check that the two users accepted the trade
-        sp.verify(trade.user1_accepted & trade.user2_accepted,
-                  message="One of the users didn't accept the trade")
+            # Set the sender as the trade second user
+            trade.user2 = sp.some(sp.sender)
 
         # Set the trade as executed
         trade.executed = True
 
-        # Transfer the first user tokens to the second user
-        sp.for token in trade.proposal.tokens1:
-            self.fa2_transfer(
-                fa2=token.fa2,
-                from_=sp.self_address,
-                to_=trade.proposal.user2,
-                token_id=token.id,
-                token_amount=token.amount)
-
         # Transfer the second user tokens to the first user
-        sp.for token in trade.proposal.tokens2:
+        self.transfer_tokens(
+            from_=sp.sender,
+            to_=trade.user1,
+            tokens=trade.tokens2)
+
+        # Transfer the first user tokens to the second user
+        self.transfer_tokens(
+            from_=sp.self_address,
+            to_=sp.sender,
+            tokens=trade.tokens1)
+
+    @sp.entry_point
+    def cancel_trade(self, trade_id):
+        """Cancels a proposed trade.
+
+        """
+        # Define the input parameter data type
+        sp.set_type(trade_id, sp.TNat)
+
+        # Check that the trade is still open
+        self.check_trade_still_open(trade_id)
+
+        # Check that no tez have been transferred
+        self.check_no_tez_transfer()
+
+        # Check that the sender is the trade first user
+        trade = self.data.trades[trade_id]
+        sp.verify(sp.sender == trade.user1,
+                  message="Only user1 can cancel the trade")
+
+        # Set the trade as cancelled
+        trade.cancelled = True
+
+        # Transfer the tokens back to the sender
+        self.transfer_tokens(
+            from_=sp.self_address,
+            to_=sp.sender,
+            tokens=trade.tokens1)
+
+    def transfer_tokens(self, from_, to_, tokens):
+        """Transfers a list of FA2 tokens between two addresses.
+
+        """
+        sp.for token in tokens:
             self.fa2_transfer(
                 fa2=token.fa2,
-                from_=sp.self_address,
-                to_=trade.proposal.user1,
+                from_=from_,
+                to_=to_,
                 token_id=token.id,
                 token_amount=token.amount)
 

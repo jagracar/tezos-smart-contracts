@@ -153,7 +153,7 @@ class BarterContract(sp.Contract):
         sp.if sp.sender == trade.proposal.user1:
             # Check that the user didn't accept the trade before
             sp.verify(~trade.user1_accepted,
-                      message="The trade was accepted before")
+                      message="The trade is already accepted")
 
             # Accept the trade
             trade.user1_accepted = True
@@ -174,7 +174,7 @@ class BarterContract(sp.Contract):
         sp.else:
             # Check that the user didn't accept the trade before
             sp.verify(~trade.user2_accepted,
-                      message="The trade was accepted before")
+                      message="The trade is already accepted")
 
             # Accept the trade
             trade.user2_accepted = True
