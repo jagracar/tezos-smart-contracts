@@ -29,7 +29,8 @@ def get_test_environment():
         metadata=sp.utils.metadata_of_url("ipfs://bbb"))
 
     # Initialize the simple barter contract
-    barter = simpleBarterContract.SimpleBarterContract()
+    barter = simpleBarterContract.SimpleBarterContract(
+        metadata=sp.utils.metadata_of_url("ipfs://ccc"))
 
     # Add all the contracts to the test scenario
     scenario = sp.test_scenario()

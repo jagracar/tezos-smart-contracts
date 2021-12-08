@@ -30,17 +30,19 @@ class SimpleBarterContract(sp.Contract):
         tokens2=TOKEN_LIST_TYPE).layout(
             ("executed", ("cancelled", ("user1", ("user2", ("tokens1", "tokens2"))))))
 
-    def __init__(self):
+    def __init__(self, metadata):
         """Initializes the contract.
 
         """
         # Define the contract storage data types for clarity
         self.init_type(sp.TRecord(
+            metadata=sp.TBigMap(sp.TString, sp.TBytes),
             trades=sp.TBigMap(sp.TNat, SimpleBarterContract.TRADE_TYPE),
             counter=sp.TNat))
 
         # Initialize the contract storage
         self.init(
+            metadata=metadata,
             trades=sp.big_map(),
             counter=0)
 
@@ -217,4 +219,5 @@ class SimpleBarterContract(sp.Contract):
 
 
 # Add a compilation target
-sp.add_compilation_target("simpleBarter", SimpleBarterContract())
+sp.add_compilation_target("simpleBarter", SimpleBarterContract(
+        metadata=sp.utils.metadata_of_url("ipfs://QmVg6rZq5e4JiFZKGyAFLZxwUC6B3edyJvEqatbA5o5Q5R")))
