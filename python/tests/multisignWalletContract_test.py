@@ -359,5 +359,5 @@ def test_lambda_proposal():
     # Check that the proposal is listed as executed
     scenario.verify(multisign.data.proposals[0].executed)
 
-    # Check that dumy contract storage has been updated to the correct vale
+    # Check that the dummy contract storage has been updated to the correct vale
     scenario.verify(dummyContract.data.x == 2)
