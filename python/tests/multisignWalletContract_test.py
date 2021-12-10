@@ -44,6 +44,7 @@ def get_test_environment():
 
     # Initialize the multisign wallet contract
     multisign = multisignWalletContract.MultisignWalletContract(
+        metadata=sp.utils.metadata_of_url("ipfs://aaa"),
         users=sp.set([user1.address, user2.address, user3.address, user4.address]),
         minimum_votes=3,
         expiration_time=3)

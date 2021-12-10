@@ -65,12 +65,13 @@ class MultisignWalletContract(sp.Contract):
                                                             "lambda_function"))))))))))))))
     """The proposal type definition."""
 
-    def __init__(self, users, minimum_votes, expiration_time=sp.nat(5)):
+    def __init__(self, metadata, users, minimum_votes, expiration_time=sp.nat(5)):
         """Initializes the contract.
 
         """
         # Define the contract storage data types for clarity
         self.init_type(sp.TRecord(
+            metadata=sp.TBigMap(sp.TString, sp.TBytes),
             users=sp.TSet(sp.TAddress),
             proposals=sp.TBigMap(sp.TNat, MultisignWalletContract.PROPOSAL_TYPE),
             votes=sp.TBigMap(sp.TPair(sp.TNat, sp.TAddress), sp.TBool),
@@ -80,6 +81,7 @@ class MultisignWalletContract(sp.Contract):
 
         # Initialize the contract storage
         self.init(
+            metadata=metadata,
             users=users,
             proposals=sp.big_map(),
             votes=sp.big_map(),
@@ -397,6 +399,7 @@ class MultisignWalletContract(sp.Contract):
 
 # Add a compilation target initialized to some random user accounts
 sp.add_compilation_target("multisign", MultisignWalletContract(
+    metadata=sp.utils.metadata_of_url("ipfs://QmRo6gyULKcLNDEwQahCbpgvAmWMKW4EomX3SvZ14tWDTE"),
     users=sp.set([sp.address("tz1gnL9CeM5h5kRzWZztFYLypCNnVQZjndBN"),
                   sp.address("tz1h9TG6uuxv2FtmE5yqMyKQqx8hkXk7NY6c")]),
     minimum_votes=sp.nat(2),
