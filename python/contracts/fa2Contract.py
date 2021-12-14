@@ -327,8 +327,8 @@ class FA2(sp.Contract):
         """
         # Define the input parameter data type
         sp.set_type(params, sp.TRecord(
-                owner=sp.TAddress,
-                token_id=sp.TNat).layout(("owner", "token_id")))
+            owner=sp.TAddress,
+            token_id=sp.TNat).layout(("owner", "token_id")))
 
         # Check that the token exists
         self.check_token_exists(params.token_id)
@@ -374,22 +374,16 @@ class FA2(sp.Contract):
 
     @sp.offchain_view(pure=True)
     def is_operator(self, params):
-        """Checks if a given user is one of the token operators.
+        """Checks if a given token operator exists.
 
         """
         # Define the input parameter data type
-        sp.set_type(params, sp.TRecord(
-            owner=sp.TAddress,
-            operator=sp.TAddress,
-            token_id=sp.TNat).layout(("owner", ("operator", "token_id"))))
+        sp.set_type(params, FA2.OPERATOR_KEY_TYPE)
 
-        # Return if the user is one of the token operator
-        sp.result(self.data.operators.contains(sp.record(
-            owner=params.owner,
-            operator=params.operator,
-            token_id=params.token_id)))
+        # Return true if the token operator exists
+        sp.result(self.data.operators.contains(params))
 
 
 sp.add_compilation_target("FA2_comp", FA2(
     administrator=sp.address("tz1M9CMEtsXm3QxA7FmMU2Qh7xzsuGXVbcDr"),
-    metadata=sp.utils.metadata_of_url("https://example.com")))
+    metadata=sp.utils.metadata_of_url("ipfs://aaa")))
