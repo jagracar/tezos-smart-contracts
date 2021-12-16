@@ -10,8 +10,8 @@ class MultisignWalletContract(sp.Contract):
 
     The contract implements the following types of proposals:
 
-        - Transfer mutez from the contract to another account.
-        - Transfer FA2 tokens from the contract to another account.
+        - Transfer mutez from the contract to other accounts.
+        - Transfer a FA2 token from the contract to other accounts.
         - Change the minimum votes parameter.
         - Change the expiration time parameter.
         - Add a new user to the contract.
@@ -19,6 +19,35 @@ class MultisignWalletContract(sp.Contract):
         - Execute some arbitrary lambda function.
 
     """
+
+    MUTEZ_TRANSFERS_TYPE = sp.TList(sp.TRecord(
+        # The amount of mutez to transfer
+        amount=sp.TMutez,
+        # The transfer destination
+        destination=sp.TAddress).layout(("amount", "destination")))
+
+    TOKEN_TRANSFERS_TYPE = sp.TRecord(
+        # The token contract address
+        fa2=sp.TAddress,
+        # The token id
+        token_id=sp.TNat,
+        # The token transfer distribution
+        distribution=sp.TList(sp.TRecord(
+            # The number of token editions to transfer
+            amount=sp.TNat,
+            # The transfer destination
+            destination=sp.TAddress).layout(("amount", "destination")))).layout(
+                ("fa2", ("token_id", "distribution")))
+
+    LAMBDA_FUNCTION_TYPE = sp.TLambda(sp.TUnit, sp.TList(sp.TOperation))
+
+    FA2_TX_TYPE = sp.TRecord(
+        # The token destination
+        to_=sp.TAddress,
+        # The token id
+        token_id=sp.TNat,
+        # The number of token editions
+        amount=sp.TNat).layout(("to_", ("token_id", "amount")))
 
     PROPOSAL_TYPE = sp.TRecord(
         # The type of proposal: transfer_mutez, transfer_token, add_user, etc
@@ -31,16 +60,10 @@ class MultisignWalletContract(sp.Contract):
         timestamp=sp.TTimestamp,
         # The number of positive votes that the proposal has received
         positive_votes=sp.TNat,
-        # The number of mutez to transfer (only used in transfer_mutez proposals)
-        mutez_amount=sp.TOption(sp.TMutez),
-        # The token contract address (only used in transfer_token proposals)
-        token_contract=sp.TOption(sp.TAddress),
-        # The token id (only used in transfer_token proposals)
-        token_id=sp.TOption(sp.TNat),
-        # The number of token editions (only used in transfer_token proposals)
-        token_amount=sp.TOption(sp.TNat),
-        # The transfer destination (only userd in transfer_mutez and transfer_token proposals)
-        destination=sp.TOption(sp.TAddress),
+        # The list of mutez transfers (only used in transfer_mutez proposals)
+        mutez_transfers=sp.TOption(MUTEZ_TRANSFERS_TYPE),
+        # The list of token transfers (only used in transfer_token proposals)
+        token_transfers=sp.TOption(TOKEN_TRANSFERS_TYPE),
         # The minimum votes for accepting a proposal (only used in minimum_votes proposals)
         minimum_votes=sp.TOption(sp.TNat),
         # The proposal expiration time in days (only used in expiration_time proposals)
@@ -48,22 +71,18 @@ class MultisignWalletContract(sp.Contract):
         # The address of the user to add or remove (only used in add_user and remove_user proposals)
         user=sp.TOption(sp.TAddress),
         # The lambda function to execute (only used in execute_lambda proposals)
-        lambda_function=sp.TOption(sp.TLambda(sp.TUnit, sp.TList(sp.TOperation)))).layout((
+        lambda_function=sp.TOption(LAMBDA_FUNCTION_TYPE)).layout((
             "type", (
                 "executed", (
                     "issuer", (
                         "timestamp", (
                             "positive_votes", (
-                                "mutez_amount", (
-                                    "token_contract", (
-                                        "token_id", (
-                                            "token_amount", (
-                                                "destination", (
-                                                    "minimum_votes", (
-                                                        "expiration_time", (
-                                                            "user",
-                                                            "lambda_function"))))))))))))))
-    """The proposal type definition."""
+                                "mutez_transfers", (
+                                    "token_transfers", (
+                                        "minimum_votes", (
+                                            "expiration_time", (
+                                                "user", "lambda_function")))))))))))
+
 
     def __init__(self, metadata, users, minimum_votes, expiration_time=sp.nat(5)):
         """Initializes the contract.
@@ -113,10 +132,9 @@ class MultisignWalletContract(sp.Contract):
         has_expired = sp.now > proposal.timestamp.add_days(sp.to_int(self.data.expiration_time))
         sp.verify(~has_expired, message="The proposal has expired")
 
-    def add_proposal(self, type, mutez_amount=sp.none, token_contract=sp.none,
-                     token_id=sp.none, token_amount=sp.none,
-                     destination=sp.none, minimum_votes=sp.none,
-                     expiration_time=sp.none, user=sp.none, lambda_function=sp.none):
+    def add_proposal(self, type, mutez_transfers=sp.none, token_transfers=sp.none,
+                     minimum_votes=sp.none, expiration_time=sp.none, user=sp.none,
+                     lambda_function=sp.none):
         """Adds a new proposal to the proposals big map.
 
         """
@@ -127,11 +145,8 @@ class MultisignWalletContract(sp.Contract):
             issuer=sp.sender,
             timestamp=sp.now,
             positive_votes=0,
-            mutez_amount=mutez_amount,
-            token_contract=token_contract,
-            token_id=token_id,
-            token_amount=token_amount,
-            destination=destination,
+            mutez_transfers=mutez_transfers,
+            token_transfers=token_transfers,
             minimum_votes=minimum_votes,
             expiration_time=expiration_time,
             user=user,
@@ -158,17 +173,13 @@ class MultisignWalletContract(sp.Contract):
 
         """
         # Define the input parameter data type
-        sp.set_type(params, sp.TRecord(
-            mutez_amount=sp.TMutez,
-            destination=sp.TAddress).layout(("mutez_amount", "destination")))
+        sp.set_type(params, MultisignWalletContract.MUTEZ_TRANSFERS_TYPE)
 
         # Check that one of the users executed the entry point
         self.check_is_user()
 
         # Add the proposal
-        self.add_proposal("transfer_mutez",
-                          mutez_amount=sp.some(params.mutez_amount),
-                          destination=sp.some(params.destination))
+        self.add_proposal("transfer_mutez", mutez_transfers=sp.some(params))
 
     @sp.entry_point
     def transfer_token_proposal(self, params):
@@ -176,22 +187,13 @@ class MultisignWalletContract(sp.Contract):
 
         """
         # Define the input parameter data type
-        sp.set_type(params, sp.TRecord(
-            token_contract=sp.TAddress,
-            token_id=sp.TNat,
-            token_amount=sp.TNat,
-            destination=sp.TAddress).layout(
-                ("token_contract", ("token_id", ("token_amount", "destination")))))
+        sp.set_type(params, MultisignWalletContract.TOKEN_TRANSFERS_TYPE)
 
         # Check that one of the users executed the entry point
         self.check_is_user()
 
         # Add the proposal
-        self.add_proposal("transfer_token",
-                          token_contract=sp.some(params.token_contract),
-                          token_id=sp.some(params.token_id),
-                          token_amount=sp.some(params.token_amount),
-                          destination=sp.some(params.destination))
+        self.add_proposal("transfer_token", token_transfers=sp.some(params))
 
     @sp.entry_point
     def minimum_votes_proposal(self, minimum_votes):
@@ -209,8 +211,7 @@ class MultisignWalletContract(sp.Contract):
                   message="The minimum_votes parameter cannot be smaller than 1")
 
         # Add the proposal
-        self.add_proposal("minimum_votes",
-                          minimum_votes=sp.some(minimum_votes))
+        self.add_proposal("minimum_votes", minimum_votes=sp.some(minimum_votes))
 
     @sp.entry_point
     def expiration_time_proposal(self, expiration_time):
@@ -228,8 +229,7 @@ class MultisignWalletContract(sp.Contract):
                   message="The expiration_time parameter cannot be smaller than 1 day")
 
         # Add the proposal
-        self.add_proposal("expiration_time",
-                          expiration_time=sp.some(expiration_time))
+        self.add_proposal("expiration_time", expiration_time=sp.some(expiration_time))
 
     @sp.entry_point
     def add_user_proposal(self, user):
@@ -273,8 +273,7 @@ class MultisignWalletContract(sp.Contract):
 
         """
         # Define the input parameter data type
-        sp.set_type(lambda_function,
-                    sp.TLambda(sp.TUnit, sp.TList(sp.TOperation)))
+        sp.set_type(lambda_function, MultisignWalletContract.LAMBDA_FUNCTION_TYPE)
 
         # Check that one of the users executed the entry point
         self.check_is_user()
@@ -335,16 +334,20 @@ class MultisignWalletContract(sp.Contract):
         proposal.executed = True
 
         sp.if proposal.type == "transfer_mutez":
-            sp.send(proposal.destination.open_some(),
-                    proposal.mutez_amount.open_some())
+            sp.for mutez_transfer in proposal.mutez_transfers.open_some():
+                sp.send(mutez_transfer.destination, mutez_transfer.amount)
 
-        sp.if proposal.type == "transfer_token":
-            self.fa2_transfer(
-                fa2=proposal.token_contract.open_some(),
-                from_=sp.self_address,
-                to_=proposal.destination.open_some(),
-                token_id=proposal.token_id.open_some(),
-                token_amount=proposal.token_amount.open_some())
+        sp.if proposal.type == "transfer_tokens":
+            txs = sp.local("txs", sp.list(t=MultisignWalletContract.FA2_TX_TYPE))
+            token_transfers = proposal.token_transfers.open_some()
+
+            sp.for distribution in token_transfers.distribution:
+                txs.value.push(sp.record(
+                    to_=distribution.destination,
+                    token_id=token_transfers.token_id,
+                    amount=distribution.amount))
+
+            self.fa2_transfer(token_transfers.fa2, sp.self_address, txs.value)
 
         sp.if proposal.type == "minimum_votes":
             sp.verify(proposal.minimum_votes.open_some() <= sp.len(self.data.users.elements()),
@@ -370,29 +373,21 @@ class MultisignWalletContract(sp.Contract):
             operations = proposal.lambda_function.open_some()(sp.unit)
             sp.add_operations(operations)
 
-    def fa2_transfer(self, fa2, from_, to_, token_id, token_amount):
-        """Transfers a number of editions of a FA2 token between two addresses.
+    def fa2_transfer(self, fa2, from_, txs):
+        """Transfers a number of editions of a FA2 token to several wallets.
 
         """
         # Get a handle to the FA2 token transfer entry point
         c = sp.contract(
             t=sp.TList(sp.TRecord(
                 from_=sp.TAddress,
-                txs=sp.TList(sp.TRecord(
-                    to_=sp.TAddress,
-                    token_id=sp.TNat,
-                    amount=sp.TNat).layout(("to_", ("token_id", "amount")))))),
+                txs=sp.TList(MultisignWalletContract.FA2_TX_TYPE))),
             address=fa2,
             entry_point="transfer").open_some()
 
         # Transfer the FA2 token editions to the new address
         sp.transfer(
-            arg=sp.list([sp.record(
-                from_=from_,
-                txs=sp.list([sp.record(
-                    to_=to_,
-                    token_id=token_id,
-                    amount=token_amount)]))]),
+            arg=sp.list([sp.record(from_=from_, txs=txs)]),
             amount=sp.mutez(0),
             destination=c)
 

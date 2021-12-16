@@ -63,7 +63,6 @@ def get_test_environment():
         "user2" : user2,
         "user3" : user3,
         "user4" : user4,
-        "user1" : user1,
         "multisign" : multisign}
 
     return testEnvironment
@@ -84,9 +83,8 @@ def test_transfer_mutez_proposal():
     receptor = sp.test_account("receptor")
 
     # Add a transfer tez proposal
-    scenario += multisign.transfer_mutez_proposal(
-        mutez_amount=sp.tez(3),
-        destination=receptor.address).run(sender=user1)
+    scenario += multisign.transfer_mutez_proposal(sp.list([
+        sp.record(amount=sp.tez(3), destination=receptor.address)])).run(sender=user1)
 
     # Vote for the proposal
     scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(sender=user1)
@@ -120,10 +118,11 @@ def test_transfer_token_proposal():
 
     # Add a transfer token proposal
     scenario += multisign.transfer_token_proposal(
-        token_contract=token.address,
+        fa2=token.address,
         token_id=sp.nat(1),
-        token_amount=sp.nat(5),
-        destination=receptor.address).run(sender=user3)
+        distribution=sp.list([sp.record(
+            amount=sp.nat(5),
+            destination=receptor.address)])).run(sender=user3)
 
     # Vote for the proposal
     scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(sender=user1)
@@ -294,9 +293,8 @@ def test_expired_proposal():
     receptor = sp.test_account("receptor")
 
     # Add a transfer mutez proposal
-    scenario += multisign.transfer_mutez_proposal(
-        mutez_amount=sp.tez(3),
-        destination=receptor.address).run(sender=user1, now=sp.timestamp(1000))
+    scenario += multisign.transfer_mutez_proposal(sp.list([
+        sp.record(amount=sp.tez(3), destination=receptor.address)])).run(sender=user1, now=sp.timestamp(1000))
 
     # Vote for the proposal
     scenario += multisign.vote_proposal(proposal_id=0, approval=True).run(sender=user1)
@@ -308,9 +306,8 @@ def test_expired_proposal():
         valid=False, sender=user4, now=sp.timestamp(1000).add_days(4))
 
     # Add another transfer mutez proposal
-    scenario += multisign.transfer_mutez_proposal(
-        mutez_amount=sp.tez(3),
-        destination=receptor.address).run(sender=user1, now=sp.timestamp(1000))
+    scenario += multisign.transfer_mutez_proposal(sp.list([
+        sp.record(amount=sp.tez(3), destination=receptor.address)])).run(sender=user1, now=sp.timestamp(1000))
 
     # Vote for the proposal
     scenario += multisign.vote_proposal(proposal_id=1, approval=True).run(sender=user1)
