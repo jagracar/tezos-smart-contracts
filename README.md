@@ -9,7 +9,7 @@ inefficient!
 
 ```bash
 wget https://smartpy.io/cli/install.sh
-bash ./install.sh local-install ~/admin/smartpy
+bash ./install.sh --prefix ~/admin/smartpy
 rm install.sh
 ```
 

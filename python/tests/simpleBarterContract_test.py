@@ -4,7 +4,7 @@
 
 import smartpy as sp
 
-# Import the simpleBarterContract and fa2Contract module
+# Import the simpleBarterContract and fa2Contract modules
 simpleBarterContract = sp.io.import_script_from_url(
     "file:python/contracts/simpleBarterContract.py")
 fa2Contract = sp.io.import_script_from_url(
