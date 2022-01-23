@@ -1,5 +1,35 @@
 """A multisg / mini-DAO contract.
 
+Users of the wallet can add their own proposals and vote proposals added by
+other users. The proposals can be executed when the number of minimum positive
+votes is reached.
+
+The contract implements the following kinds of proposals:
+
+    - Text submitted for approval and stored in ipfs.
+    - Transfer mutez from the contract to other accounts.
+    - Transfer a FA2 token from the contract to other accounts.
+    - Change the minimum votes parameter.
+    - Change the expiration time parameter.
+    - Add a new user to the contract.
+    - Remove one user from the contract.
+    - Execute some arbitrary lambda function.
+
+
+Error message codes:
+
+    - MS_NOT_USER: The operation can only be executed by one of the multisig wallet users.
+    - MS_INEXISTENT_PROPOSAL: The given proposal id doesn't exist.
+    - MS_EXECUTED_PROPOSAL: The proposal has been executed and cannot be voted or executed anymore.
+    - MS_EXPIRED_PROPOSAL: The proposal has expired and cannot be voted or executed anymore.
+    - MS_WRONG_MINIMUM_VOTES: The minimum_votes parameter cannot be smaller than 1 or higher than the number of users.
+    - MS_WRONG_EXPIRATION_TIME: The expiration_time parameter cannot be smaller than 1 day.
+    - MS_ALREADY_USER: The proposed address is already a multsig user.
+    - MS_WRONG_USER: The proposed address is not a multisig user.
+    - MS_NOT_EXECUTABLE: The proposal didn't receive enough positive votes to be executed.
+    - MS_LAST_USER: The last user cannot be removed.
+    - MS_NO_USER_VOTE: The user didn't vote the proposal.
+
 """
 
 import smartpy as sp
@@ -7,21 +37,6 @@ import smartpy as sp
 
 class MultisigWalletContract(sp.Contract):
     """This contract implements a basic multisig wallet / mini-DAO.
-
-    Users of the wallet can add their own proposals and vote proposals added by
-    other users. The proposals can be executed when the number of minimum
-    positive votes is reached.
-
-    The contract implements the following kinds of proposals:
-
-        - Text submitted for approval and stored in ipfs.
-        - Transfer mutez from the contract to other accounts.
-        - Transfer a FA2 token from the contract to other accounts.
-        - Change the minimum votes parameter.
-        - Change the expiration time parameter.
-        - Add a new user to the contract.
-        - Remove one user from the contract.
-        - Execute some arbitrary lambda function.
 
     """
 
@@ -139,8 +154,7 @@ class MultisigWalletContract(sp.Contract):
         the users.
 
         """
-        sp.verify(self.data.users.contains(sp.sender),
-                  message="This can only be executed by one of the wallet users")
+        sp.verify(self.data.users.contains(sp.sender), message="MS_NOT_USER")
 
     def check_proposal_is_valid(self, proposal_id):
         """Checks that the proposal_id is from a valid proposal.
@@ -148,15 +162,15 @@ class MultisigWalletContract(sp.Contract):
         """
         # Check that the proposal id is present in the proposals big map
         sp.verify(self.data.proposals.contains(proposal_id),
-                  message="The proposal doesn't exist")
+                  message="MS_INEXISTENT_PROPOSAL")
 
         # Check that the proposal has not been executed
         proposal = self.data.proposals[proposal_id]
-        sp.verify(~proposal.executed, message="The proposal has been executed")
+        sp.verify(~proposal.executed, message="MS_EXECUTED_PROPOSAL")
 
         # Check that the proposal has not expired
         has_expired = sp.now > proposal.timestamp.add_days(sp.to_int(self.data.expiration_time))
-        sp.verify(~has_expired, message="The proposal has expired")
+        sp.verify(~has_expired, message="MS_EXPIRED_PROPOSAL")
 
     def add_proposal(self, kind, text=sp.none, mutez_transfers=sp.none,
                      token_transfers=sp.none, minimum_votes=sp.none,
@@ -249,8 +263,7 @@ class MultisigWalletContract(sp.Contract):
         self.check_is_user()
 
         # Check that the proposed minimum votes are at least 1
-        sp.verify(minimum_votes >= 1,
-                  message="The minimum_votes parameter cannot be smaller than 1")
+        sp.verify(minimum_votes >= 1, message="MS_WRONG_MINIMUM_VOTES")
 
         # Add the proposal
         self.add_proposal("minimum_votes", minimum_votes=sp.some(minimum_votes))
@@ -267,8 +280,7 @@ class MultisigWalletContract(sp.Contract):
         self.check_is_user()
 
         # Check that the proposed expiration time is at least 1 day
-        sp.verify(expiration_time >= 1,
-                  message="The expiration_time parameter cannot be smaller than 1 day")
+        sp.verify(expiration_time >= 1, message="MS_WRONG_EXPIRATION_TIME")
 
         # Add the proposal
         self.add_proposal("expiration_time", expiration_time=sp.some(expiration_time))
@@ -285,8 +297,7 @@ class MultisigWalletContract(sp.Contract):
         self.check_is_user()
 
         # Check that the new user is not in the users list
-        sp.verify(~self.data.users.contains(user),
-                  message="The proposed address is in the users list")
+        sp.verify(~self.data.users.contains(user), message="MS_ALREADY_USER")
 
         # Add the proposal
         self.add_proposal("add_user", user=sp.some(user))
@@ -303,8 +314,7 @@ class MultisigWalletContract(sp.Contract):
         self.check_is_user()
 
         # Check that the user to remove is in the users list
-        sp.verify(self.data.users.contains(user),
-                  message="The proposed address is not in the users list")
+        sp.verify(self.data.users.contains(user), message="MS_WRONG_USER")
 
         # Add the proposal
         self.add_proposal("remove_user", user=sp.some(user))
@@ -370,7 +380,7 @@ class MultisigWalletContract(sp.Contract):
         # Check that the proposal received enough positive votes
         proposal = self.data.proposals[proposal_id]
         sp.verify(proposal.positive_votes >= self.data.minimum_votes,
-                  message="The proposal didn't receive enough positive votes")
+                  message="MS_NOT_EXECUTABLE")
 
         # Execute the proposal
         proposal.executed = True
@@ -393,7 +403,7 @@ class MultisigWalletContract(sp.Contract):
 
         sp.if proposal.kind.is_variant("minimum_votes"):
             sp.verify(proposal.minimum_votes.open_some() <= sp.len(self.data.users.elements()),
-                      message="The minimum_votes parameter cannot be higher than the number of users")
+                      message="MS_WRONG_MINIMUM_VOTES")
             self.data.minimum_votes = proposal.minimum_votes.open_some()
 
         sp.if proposal.kind.is_variant("expiration_time"):
@@ -404,7 +414,7 @@ class MultisigWalletContract(sp.Contract):
 
         sp.if proposal.kind.is_variant("remove_user"):
             sp.verify(sp.len(self.data.users.elements()) > 1,
-                      message="The last user cannot be removed")
+                      message="MS_LAST_USER")
             self.data.users.remove(proposal.user.open_some())
 
             # Update the minimum votes parameter if necessary
@@ -464,7 +474,7 @@ class MultisigWalletContract(sp.Contract):
 
         # Check that the proposal id is present in the proposals big map
         sp.verify(self.data.proposals.contains(proposal_id),
-                  message="The provided proposal_id doesn't exist")
+                  message="MS_INEXISTENT_PROPOSAL")
 
         # Return the proposal information
         sp.result(self.data.proposals[proposal_id])
@@ -481,7 +491,7 @@ class MultisigWalletContract(sp.Contract):
 
         # Check that the vote is present in the votes big map
         sp.verify(self.data.votes.contains((vote.proposal_id, vote.user)),
-                  message="The user didn't vote the proposal")
+                  message="MS_NO_USER_VOTE")
 
         # Return the user's vote
         sp.result(self.data.votes[(vote.proposal_id, vote.user)])
