@@ -96,7 +96,7 @@ class MultisigWalletContract(sp.Contract):
         mutez_transfers=sp.TOption(MUTEZ_TRANSFERS_TYPE),
         # The list of token transfers (only used in transfer_token proposals)
         token_transfers=sp.TOption(TOKEN_TRANSFERS_TYPE),
-        # The minimum votes for accepting a proposal (only used in minimum_votes proposals)
+        # The minimum votes for executing a proposal (only used in minimum_votes proposals)
         minimum_votes=sp.TOption(sp.TNat),
         # The proposal expiration time in days (only used in expiration_time proposals)
         expiration_time=sp.TOption(sp.TNat),
@@ -128,15 +128,38 @@ class MultisigWalletContract(sp.Contract):
     def __init__(self, metadata, users, minimum_votes, expiration_time=sp.nat(5)):
         """Initializes the contract.
 
+        Parameters
+        ----------
+        metadata: sp.TBigMap(sp.TString, sp.TBytes)
+            The contract metadata big map. It should contain the IPFS path to
+            the contract metadata json file.
+        users: sp.TSet(sp.TAddress)
+            The set of initial multisig user addresses.
+        minimum_votes: sp.TNat
+            The minimum number of positive votes required to execute a proposal.
+        expiration_time: sp.TNat, optional
+            The proposals expiration time in days. Default is 5 days.
+
         """
         # Define the contract storage data types for clarity
         self.init_type(sp.TRecord(
+            # The contract metadata bigmap.
+            # The metadata is stored as a json file in IPFS and the big map
+            # contains the IPFS path.
             metadata=sp.TBigMap(sp.TString, sp.TBytes),
+            # The multisig users that can propose, vote and execute proposals.
             users=sp.TSet(sp.TAddress),
+            # The big map with the proposals information.
             proposals=sp.TBigMap(sp.TNat, MultisigWalletContract.PROPOSAL_TYPE),
+            # The big map with the votes information.
             votes=sp.TBigMap(sp.TPair(sp.TNat, sp.TAddress), sp.TBool),
+            # The minimum number of positive votes required to execute a
+            # proposal.
             minimum_votes=sp.TNat,
+            # The proposals expiration time in days.
             expiration_time=sp.TNat,
+            # The proposals bigmap counter. It tracks the total number of
+            # proposals in the proposals big map.
             counter=sp.TNat))
 
         # Initialize the contract storage
@@ -159,6 +182,12 @@ class MultisigWalletContract(sp.Contract):
     def check_proposal_is_valid(self, proposal_id):
         """Checks that the proposal_id is from a valid proposal.
 
+        Parameters
+        ----------
+        proposal_id: sp.TNat
+            The proposal id. It refers to the proposals big map key containing
+            the proposal parameters.
+
         """
         # Check that the proposal id is present in the proposals big map
         sp.verify(self.data.proposals.contains(proposal_id),
@@ -177,6 +206,25 @@ class MultisigWalletContract(sp.Contract):
                      expiration_time=sp.none, user=sp.none,
                      lambda_function=sp.none):
         """Adds a new proposal to the proposals big map.
+
+        Parameters
+        ----------
+        kind: sp.TString
+            The kind of proposal.
+        text: sp.TOption(sp.TBytes), optional
+            The proposed text stored in an ipfs file. Default is sp.none.
+        mutez_transfers: sp.TOption(MUTEZ_TRANSFERS_TYPE), optional
+            The list of mutez transfers. Default is sp.none.
+        token_transfers: sp.TOption(TOKEN_TRANSFERS_TYPE), optional
+            The list of token transfers. Default is sp.none.
+        minimum_votes: sp.TOption(sp.TNat), optional
+            The minimum votes for executing a proposal. Default is sp.none.
+        expiration_time: sp.TOption(sp.TNat), optional
+            The proposal expiration time in days. Default is sp.none.
+        user: sp.TOption(sp.TAddress), optional
+            The address of the user to add or remove. Default is sp.none.
+        lambda_function: sp.TOption(LAMBDA_FUNCTION_TYPE), optional
+            The lambda function to execute. Default is sp.none.
 
         """
         # Update the proposals bigmap with the new proposal information
@@ -199,19 +247,24 @@ class MultisigWalletContract(sp.Contract):
 
     @sp.entry_point
     def default(self, unit):
-        """Default entrypoint that allows receiving tez and token transfers in
-        the same way as one would do with a normal tz wallet.
+        """Default entrypoint that allows receiving tez transfers in the same
+        way as one would do with a normal tz wallet.
 
         """
         # Define the input parameter data type
         sp.set_type(unit, sp.TUnit)
 
-        # Do nothing, just receive tez or tokens
+        # Do nothing, just receive tez
         pass
 
     @sp.entry_point
     def text_proposal(self, text):
         """Adds a new text proposal to the proposals big map.
+
+        Parameters
+        ----------
+        text: sp.TBytes
+            The proposed text stored in an ipfs file.
 
         """
         # Define the input parameter data type
@@ -227,6 +280,11 @@ class MultisigWalletContract(sp.Contract):
     def transfer_mutez_proposal(self, mutez_transfers):
         """Adds a new transfer mutez proposal to the proposals big map.
 
+        Parameters
+        ----------
+        mutez_transfers: MUTEZ_TRANSFERS_TYPE
+            The list of mutez transfers.
+
         """
         # Define the input parameter data type
         sp.set_type(mutez_transfers, MultisigWalletContract.MUTEZ_TRANSFERS_TYPE)
@@ -241,6 +299,11 @@ class MultisigWalletContract(sp.Contract):
     def transfer_token_proposal(self, token_transfers):
         """Adds a new transfer token proposal to the proposals big map.
 
+        Parameters
+        ----------
+        token_transfers: TOKEN_TRANSFERS_TYPE
+            The list of token transfers.
+
         """
         # Define the input parameter data type
         sp.set_type(token_transfers, MultisigWalletContract.TOKEN_TRANSFERS_TYPE)
@@ -254,6 +317,11 @@ class MultisigWalletContract(sp.Contract):
     @sp.entry_point
     def minimum_votes_proposal(self, minimum_votes):
         """Adds a new minimum votes proposal to the proposals big map.
+
+        Parameters
+        ----------
+        minimum_votes: sp.TNat
+            The minimum votes for executing a proposal.
 
         """
         # Define the input parameter data type
@@ -272,6 +340,11 @@ class MultisigWalletContract(sp.Contract):
     def expiration_time_proposal(self, expiration_time):
         """Adds a new expiration time proposal to the proposals big map.
 
+        Parameters
+        ----------
+        expiration_time: sp.TNat
+            The proposal expiration time in days.
+
         """
         # Define the input parameter data type
         sp.set_type(expiration_time, sp.TNat)
@@ -288,6 +361,11 @@ class MultisigWalletContract(sp.Contract):
     @sp.entry_point
     def add_user_proposal(self, user):
         """Adds a new add user proposal to the proposals big map.
+
+        Parameters
+        ----------
+        user: sp.TAddress
+            The address of the user to add.
 
         """
         # Define the input parameter data type
@@ -306,6 +384,11 @@ class MultisigWalletContract(sp.Contract):
     def remove_user_proposal(self, user):
         """Adds a new remove user proposal to the proposals big map.
 
+        Parameters
+        ----------
+        user: sp.TAddress
+            The address of the user to remove.
+
         """
         # Define the input parameter data type
         sp.set_type(user, sp.TAddress)
@@ -323,6 +406,11 @@ class MultisigWalletContract(sp.Contract):
     def lambda_function_proposal(self, lambda_function):
         """Adds a new lambda function proposal to the proposals big map.
 
+        Parameters
+        ----------
+        lambda_function: LAMBDA_FUNCTION_TYPE
+            The lambda function to execute.
+
         """
         # Define the input parameter data type
         sp.set_type(lambda_function, MultisigWalletContract.LAMBDA_FUNCTION_TYPE)
@@ -336,6 +424,14 @@ class MultisigWalletContract(sp.Contract):
     @sp.entry_point
     def vote_proposal(self, vote):
         """Adds one vote for a given proposal.
+
+        Parameters
+        ----------
+        vote: sp.TRecord
+            The user vote information:
+            - proposal_id: The proposal id. It refers to the proposals big map
+              key containing the proposal parameters.
+            - approval: true for a positive vote, false for a negative vote.
 
         """
         # Define the input parameter data type
@@ -366,6 +462,12 @@ class MultisigWalletContract(sp.Contract):
     @sp.entry_point
     def execute_proposal(self, proposal_id):
         """Executes a given proposal.
+
+        Parameters
+        ----------
+        proposal_id: sp.TNat
+            The proposal id. It refers to the proposals big map key containing
+            the proposal parameters.
 
         """
         # Define the input parameter data type
@@ -429,12 +531,27 @@ class MultisigWalletContract(sp.Contract):
     def get_users(self):
         """Returns the multisig wallet users.
 
+        Returns
+        -------
+        sp.TSet(sp.TAddress)
+            The multisig wallet users.
+
         """
         sp.result(self.data.users)
 
     @sp.onchain_view()
     def is_user(self, user):
-        """Checks if the given wallet is one of the multisig wallet users.
+        """Checks if the given address is one of the multisig wallet users.
+
+        Parameters
+        ----------
+        user: sp.TAddress
+            The user address.
+
+        Returns
+        -------
+        sp.TBool
+            True, if the address is one of the multisig wallet users.
 
         """
         # Define the input parameter data type
@@ -447,12 +564,22 @@ class MultisigWalletContract(sp.Contract):
     def get_minimum_votes(self):
         """Returns the minimum votes parameter.
 
+        Returns
+        -------
+        sp.TNat
+            The multisig minimum votes parameter.
+
         """
         sp.result(self.data.minimum_votes)
 
     @sp.onchain_view()
     def get_expiration_time(self):
         """Returns the expiration time parameter.
+
+        Returns
+        -------
+        sp.TNat
+            The multisig proposals expiration time parameter in days.
 
         """
         sp.result(self.data.expiration_time)
@@ -461,12 +588,28 @@ class MultisigWalletContract(sp.Contract):
     def get_proposal_count(self):
         """Returns the total number of proposals.
 
+        Returns
+        -------
+        sp.TNat
+            The total number of proposals.
+
         """
         sp.result(self.data.counter)
 
     @sp.onchain_view()
     def get_proposal(self, proposal_id):
         """Returns the complete information from a given proposal.
+
+        Parameters
+        ----------
+        proposal_id: sp.TNat
+            The proposal id. It refers to the proposals big map key containing
+            the proposal parameters.
+
+        Returns
+        -------
+        PROPOSAL_TYPE
+            The proposal parameters.
 
         """
         # Define the input parameter data type
@@ -482,6 +625,20 @@ class MultisigWalletContract(sp.Contract):
     @sp.onchain_view()
     def get_vote(self, vote):
         """Returns a user's vote.
+
+        Parameters
+        ----------
+        vote: sp.TRecord
+            The user vote information:
+            - proposal_id: The proposal id. It refers to the proposals big map
+              key containing the proposal parameters.
+            - user: The user address.
+
+        Returns
+        -------
+        sp.TBool
+            True, if the user voted YES to the proposal. False, if the user
+            voted NO to the proposal.
 
         """
         # Define the input parameter data type
@@ -500,6 +657,20 @@ class MultisigWalletContract(sp.Contract):
     def has_voted(self, vote):
         """Returns true if the user has voted the given proposal.
 
+        Parameters
+        ----------
+        vote: sp.TRecord
+            The user vote information:
+            - proposal_id: The proposal id. It refers to the proposals big map
+              key containing the proposal parameters.
+            - user: The user address.
+
+        Returns
+        -------
+        sp.TBool
+            True, if the user has voted the proposal. False, if the user didn't
+            vote the proposal.
+
         """
         # Define the input parameter data type
         sp.set_type(vote, sp.TRecord(
@@ -511,6 +682,15 @@ class MultisigWalletContract(sp.Contract):
 
     def fa2_transfer(self, fa2, from_, txs):
         """Transfers a number of editions of a FA2 token to several wallets.
+
+        Parameters
+        ----------
+        fa2: sp.TAddress
+            The FA2 token contract address.
+        from_: sp.TAddress
+            The address from which the tokens will be transferred.
+        txs: sp.TList(FA2_TX_TYPE)
+            The list of transactions (to_, token_id, amount).
 
         """
         # Get a handle to the FA2 token transfer entry point
