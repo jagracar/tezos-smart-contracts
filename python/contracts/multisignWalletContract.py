@@ -463,6 +463,11 @@ class MultisigWalletContract(sp.Contract):
     def execute_proposal(self, proposal_id):
         """Executes a given proposal.
 
+        Note that in the case of executing a transfer token proposal, if the
+        token is not owned by the multisig, the owner of the token should add
+        the multisig as an operator of the token. It's recommended to remove
+        the multisig operator rights after calling this entry point.
+
         Parameters
         ----------
         proposal_id: sp.TNat
