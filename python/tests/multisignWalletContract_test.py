@@ -11,6 +11,32 @@ fa2Contract = sp.io.import_script_from_url(
     "file:python/templates/fa2Contract.py")
 
 
+class RecipientContract(sp.Contract):
+    """This contract simulates a user that can recive tez transfers.
+
+    It should only be used to test that tez transfers are sent correctly.
+
+    """
+
+    def __init__(self):
+        """Initializes the contract.
+
+        """
+        self.init()
+
+    @sp.entry_point
+    def default(self, unit):
+        """Default entrypoint that allows receiving tez transfers in the same
+        way as one would do with a normal tz wallet.
+
+        """
+        # Define the input parameter data type
+        sp.set_type(unit, sp.TUnit)
+
+        # Do nothing, just receive tez
+        pass
+
+
 class DummyContract(sp.Contract):
     """This is a dummy contract to be used only for test purposes.
 
@@ -71,6 +97,28 @@ def get_test_environment():
         "multisig" : multisig}
 
     return testEnvironment
+
+
+@sp.add_test(name="Test default entripoint")
+def test_default_entripoint():
+    # Get the test environment
+    testEnvironment = get_test_environment()
+    scenario = testEnvironment["scenario"]
+    user1 = testEnvironment["user1"]
+    non_user = testEnvironment["non_user"]
+    multisig = testEnvironment["multisig"]
+
+    # Check that multisig users can send tez to the contract
+    scenario += multisig.default(sp.unit).run(sender=user1, amount=sp.tez(3))
+
+    # Check that the tez are now part of the contract balance
+    scenario.verify(multisig.balance == sp.tez(10 + 3))
+
+    # Check that non-multisig users can also send tez to the contract
+    scenario += multisig.default(sp.unit).run(sender=non_user, amount=sp.tez(5))
+
+    # Check that the tez have been added to the contract balance
+    scenario.verify(multisig.balance == sp.tez(10 + 3 + 5))
 
 
 @sp.add_test(name="Test create vote and execute proposal")
@@ -134,17 +182,26 @@ def test_create_vote_and_execute_proposal():
     scenario.verify(multisig.data.proposals[0].positive_votes == 2)
     scenario.verify(~multisig.data.proposals[0].executed)
 
-    # The second and third users change their vote
+    # The second user changes their vote
     scenario += multisig.vote_proposal(proposal_id=0, approval=False).run(sender=user2)
-    scenario += multisig.vote_proposal(proposal_id=0, approval=True).run(sender=user3)
 
     # Check that the votes have been updated
     scenario.verify(multisig.data.votes[(0, user2.address)] == False)
+    scenario.verify(multisig.data.proposals[0].positive_votes == 1)
+
+    # The third user also changes their vote
+    scenario += multisig.vote_proposal(proposal_id=0, approval=True).run(sender=user3)
+
+    # Check that the votes have been updated
     scenario.verify(multisig.data.votes[(0, user3.address)] == True)
     scenario.verify(multisig.data.proposals[0].positive_votes == 2)
 
     # Check that voting twice positive only counts as one vote
     scenario += multisig.vote_proposal(proposal_id=0, approval=True).run(sender=user3)
+    scenario.verify(multisig.data.proposals[0].positive_votes == 2)
+
+    # Check that voting twice negative doesn't modify the result
+    scenario += multisig.vote_proposal(proposal_id=0, approval=False).run(sender=user2)
     scenario.verify(multisig.data.proposals[0].positive_votes == 2)
 
     # Check that the proposal cannot be executed because it doesn't have enough positive votes
@@ -238,14 +295,17 @@ def test_transfer_mutez_proposal():
     user4 = testEnvironment["user4"]
     multisig = testEnvironment["multisig"]
 
-    # Create the accounts that will receive the tez transfers
-    receptor1 = sp.test_account("receptor1")
-    receptor2 = sp.test_account("receptor2")
+    # Create the accounts that will receive the tez transfers and add the to
+    # the scenario
+    recipient1 = RecipientContract()
+    recipient2 = RecipientContract()
+    scenario += recipient1
+    scenario += recipient2
 
     # Add a transfer tez proposal
     mutez_transfers = sp.list([
-        sp.record(amount=sp.tez(3), destination=receptor1.address),
-        sp.record(amount=sp.tez(2), destination=receptor2.address)])
+        sp.record(amount=sp.tez(3), destination=recipient1.address),
+        sp.record(amount=sp.tez(2), destination=recipient2.address)])
     scenario += multisig.transfer_mutez_proposal(mutez_transfers).run(sender=user1)
 
     # Vote for the proposal
@@ -262,6 +322,10 @@ def test_transfer_mutez_proposal():
 
     # Check that the contract balance is correct
     scenario.verify(multisig.balance == sp.tez(10 - 3 - 2))
+
+    # Check that the tez amounts have been sent to the correct destinations
+    scenario.verify(recipient1.balance == sp.tez(3))
+    scenario.verify(recipient2.balance == sp.tez(2))
 
 
 @sp.add_test(name="Test transter token proposal")
