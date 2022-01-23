@@ -1,8 +1,12 @@
+"""A multisg / mini-DAO contract.
+
+"""
+
 import smartpy as sp
 
 
-class MultisignWalletContract(sp.Contract):
-    """This contract implements a basic multisign wallet / DAO.
+class MultisigWalletContract(sp.Contract):
+    """This contract implements a basic multisig wallet / mini-DAO.
 
     Users of the wallet can add their own proposals and vote proposals added by
     other users. The proposals can be executed when the number of minimum
@@ -114,7 +118,7 @@ class MultisignWalletContract(sp.Contract):
         self.init_type(sp.TRecord(
             metadata=sp.TBigMap(sp.TString, sp.TBytes),
             users=sp.TSet(sp.TAddress),
-            proposals=sp.TBigMap(sp.TNat, MultisignWalletContract.PROPOSAL_TYPE),
+            proposals=sp.TBigMap(sp.TNat, MultisigWalletContract.PROPOSAL_TYPE),
             votes=sp.TBigMap(sp.TPair(sp.TNat, sp.TAddress), sp.TBool),
             minimum_votes=sp.TNat,
             expiration_time=sp.TNat,
@@ -211,7 +215,7 @@ class MultisignWalletContract(sp.Contract):
 
         """
         # Define the input parameter data type
-        sp.set_type(mutez_transfers, MultisignWalletContract.MUTEZ_TRANSFERS_TYPE)
+        sp.set_type(mutez_transfers, MultisigWalletContract.MUTEZ_TRANSFERS_TYPE)
 
         # Check that one of the users executed the entry point
         self.check_is_user()
@@ -225,7 +229,7 @@ class MultisignWalletContract(sp.Contract):
 
         """
         # Define the input parameter data type
-        sp.set_type(token_transfers, MultisignWalletContract.TOKEN_TRANSFERS_TYPE)
+        sp.set_type(token_transfers, MultisigWalletContract.TOKEN_TRANSFERS_TYPE)
 
         # Check that one of the users executed the entry point
         self.check_is_user()
@@ -311,7 +315,7 @@ class MultisignWalletContract(sp.Contract):
 
         """
         # Define the input parameter data type
-        sp.set_type(lambda_function, MultisignWalletContract.LAMBDA_FUNCTION_TYPE)
+        sp.set_type(lambda_function, MultisigWalletContract.LAMBDA_FUNCTION_TYPE)
 
         # Check that one of the users executed the entry point
         self.check_is_user()
@@ -376,7 +380,7 @@ class MultisignWalletContract(sp.Contract):
                 sp.send(mutez_transfer.destination, mutez_transfer.amount)
 
         sp.if proposal.kind.is_variant("transfer_token"):
-            txs = sp.local("txs", sp.list(t=MultisignWalletContract.FA2_TX_TYPE))
+            txs = sp.local("txs", sp.list(t=MultisigWalletContract.FA2_TX_TYPE))
             token_transfers = proposal.token_transfers.open_some()
 
             sp.for distribution in token_transfers.distribution:
@@ -413,20 +417,20 @@ class MultisignWalletContract(sp.Contract):
 
     @sp.onchain_view()
     def get_users(self):
-        """Returns the multisign wallet users.
+        """Returns the multisig wallet users.
 
         """
         sp.result(self.data.users)
 
     @sp.onchain_view()
     def is_user(self, user):
-        """Checks if the given wallet is one of the multisign wallet users.
+        """Checks if the given wallet is one of the multisig wallet users.
 
         """
         # Define the input parameter data type
         sp.set_type(user, sp.TAddress)
 
-        # Return true if the user is part of the multisign wallet users
+        # Return true if the user is part of the multisig wallet users
         sp.result(self.data.users.contains(user))
 
     @sp.onchain_view()
@@ -503,7 +507,7 @@ class MultisignWalletContract(sp.Contract):
         c = sp.contract(
             t=sp.TList(sp.TRecord(
                 from_=sp.TAddress,
-                txs=sp.TList(MultisignWalletContract.FA2_TX_TYPE))),
+                txs=sp.TList(MultisigWalletContract.FA2_TX_TYPE))),
             address=fa2,
             entry_point="transfer").open_some()
 
@@ -515,7 +519,7 @@ class MultisignWalletContract(sp.Contract):
 
 
 # Add a compilation target initialized to some random user accounts
-sp.add_compilation_target("multisign", MultisignWalletContract(
+sp.add_compilation_target("multisig", MultisigWalletContract(
     metadata=sp.utils.metadata_of_url("ipfs://QmRo6gyULKcLNDEwQahCbpgvAmWMKW4EomX3SvZ14tWDTE"),
     users=sp.set([sp.address("tz1gnL9CeM5h5kRzWZztFYLypCNnVQZjndBN"),
                   sp.address("tz1h9TG6uuxv2FtmE5yqMyKQqx8hkXk7NY6c")]),
