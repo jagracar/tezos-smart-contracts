@@ -1,0 +1,73 @@
+{
+    "name": "HEN Community multisg wallet / mini-DAO",
+    "description": "This contract allows a group of users to adminsiter funds in a safe way. It can also be used to create, vote and execute proposals.",
+    "version": "1.0.0",
+    "license": {
+        "name": "MIT",
+        "details": "The MIT License"
+    },
+    "authors": ["The HEN Community <https://twitter.com/hen_community>"],
+    "homepage": "https://github.com/hen-community",
+    "source": {
+        "tools": ["SmartPy 0.8.10"],
+        "location": "https://github.com/jagracar/tezos-smart-contracts/blob/main/python/contracts/multisignWalletContract.py"
+    },
+    "interfaces": ["TZIP-016"],
+    "errors": [
+        {
+            "error": { "string": "MS_NOT_USER"}, 
+            "expansion": { "string": "The operation can only be executed by one of the multisig wallet users"},
+            "languages": ["en"] 
+        },
+        {
+            "error": { "string": "MS_INEXISTENT_PROPOSAL"}, 
+            "expansion": { "string": "The given proposal id doesn't exist"},
+            "languages": ["en"] 
+        },
+        {
+            "error": { "string": "MS_EXECUTED_PROPOSAL"}, 
+            "expansion": { "string": "The proposal has been executed and cannot be voted or executed anymore"},
+            "languages": ["en"] 
+        },
+        {
+            "error": { "string": "MS_EXPIRED_PROPOSAL"}, 
+            "expansion": { "string": "The proposal has expired and cannot be voted or executed anymore"},
+            "languages": ["en"] 
+        },
+        {
+            "error": { "string": "MS_WRONG_MINIMUM_VOTES"}, 
+            "expansion": { "string": "The minimum_votes parameter cannot be smaller than 1 or higher than the number of users"},
+            "languages": ["en"] 
+        },
+        {
+            "error": { "string": "MS_WRONG_EXPIRATION_TIME"}, 
+            "expansion": { "string": "The expiration_time parameter cannot be smaller than 1 day"},
+            "languages": ["en"] 
+        },
+        {
+            "error": { "string": "MS_ALREADY_USER"}, 
+            "expansion": { "string": "The proposed address is already a multsig user"},
+            "languages": ["en"] 
+        },
+        {
+            "error": { "string": "MS_WRONG_USER"}, 
+            "expansion": { "string": "The proposed address is not a multisig user"},
+            "languages": ["en"] 
+        },
+        {
+            "error": { "string": "MS_NOT_EXECUTABLE"}, 
+            "expansion": { "string": "The proposal didn't receive enough positive votes to be executed"},
+            "languages": ["en"] 
+        },
+        {
+            "error": { "string": "MS_LAST_USER"}, 
+            "expansion": { "string": "The last user cannot be removed"},
+            "languages": ["en"] 
+        },
+        {
+            "error": { "string": "MS_NO_USER_VOTE"}, 
+            "expansion": { "string": "The user didn't vote the proposal"},
+            "languages": ["en"] 
+        }
+    ]
+}
