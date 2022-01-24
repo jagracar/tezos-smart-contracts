@@ -485,20 +485,20 @@ class MultisigWalletContract(sp.Contract):
         self.check_proposal_is_valid(proposal_id)
 
         # Check that the proposal received enough positive votes
-        proposal = self.data.proposals[proposal_id]
-        sp.verify(proposal.positive_votes >= self.data.minimum_votes,
+        proposal = sp.local("proposal", self.data.proposals[proposal_id])
+        sp.verify(proposal.value.positive_votes >= self.data.minimum_votes,
                   message="MS_NOT_EXECUTABLE")
 
         # Execute the proposal
-        proposal.executed = True
+        self.data.proposals[proposal_id].executed = True
 
-        sp.if proposal.kind.is_variant("transfer_mutez"):
-            sp.for mutez_transfer in proposal.mutez_transfers.open_some():
+        sp.if proposal.value.kind.is_variant("transfer_mutez"):
+            sp.for mutez_transfer in proposal.value.mutez_transfers.open_some():
                 sp.send(mutez_transfer.destination, mutez_transfer.amount)
 
-        sp.if proposal.kind.is_variant("transfer_token"):
+        sp.if proposal.value.kind.is_variant("transfer_token"):
             txs = sp.local("txs", sp.list(t=MultisigWalletContract.FA2_TX_TYPE))
-            token_transfers = proposal.token_transfers.open_some()
+            token_transfers = proposal.value.token_transfers.open_some()
 
             sp.for distribution in token_transfers.distribution:
                 txs.value.push(sp.record(
@@ -508,28 +508,28 @@ class MultisigWalletContract(sp.Contract):
 
             self.fa2_transfer(token_transfers.fa2, sp.self_address, txs.value)
 
-        sp.if proposal.kind.is_variant("minimum_votes"):
-            sp.verify(proposal.minimum_votes.open_some() <= sp.len(self.data.users.elements()),
+        sp.if proposal.value.kind.is_variant("minimum_votes"):
+            sp.verify(proposal.value.minimum_votes.open_some() <= sp.len(self.data.users.elements()),
                       message="MS_WRONG_MINIMUM_VOTES")
-            self.data.minimum_votes = proposal.minimum_votes.open_some()
+            self.data.minimum_votes = proposal.value.minimum_votes.open_some()
 
-        sp.if proposal.kind.is_variant("expiration_time"):
-            self.data.expiration_time = proposal.expiration_time.open_some()
+        sp.if proposal.value.kind.is_variant("expiration_time"):
+            self.data.expiration_time = proposal.value.expiration_time.open_some()
 
-        sp.if proposal.kind.is_variant("add_user"):
-            self.data.users.add(proposal.user.open_some())
+        sp.if proposal.value.kind.is_variant("add_user"):
+            self.data.users.add(proposal.value.user.open_some())
 
-        sp.if proposal.kind.is_variant("remove_user"):
+        sp.if proposal.value.kind.is_variant("remove_user"):
             sp.verify(sp.len(self.data.users.elements()) > 1,
                       message="MS_LAST_USER")
-            self.data.users.remove(proposal.user.open_some())
+            self.data.users.remove(proposal.value.user.open_some())
 
             # Update the minimum votes parameter if necessary
             sp.if self.data.minimum_votes > sp.len(self.data.users.elements()):
                 self.data.minimum_votes = sp.len(self.data.users.elements())
 
-        sp.if proposal.kind.is_variant("lambda_function"):
-            operations = proposal.lambda_function.open_some()(sp.unit)
+        sp.if proposal.value.kind.is_variant("lambda_function"):
+            operations = proposal.value.lambda_function.open_some()(sp.unit)
             sp.add_operations(operations)
 
     @sp.onchain_view()
