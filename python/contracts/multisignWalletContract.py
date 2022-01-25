@@ -28,7 +28,7 @@ Error message codes:
     - MS_WRONG_USER: The proposed address is not a multisig user.
     - MS_NOT_EXECUTABLE: The proposal didn't receive enough positive votes to be executed.
     - MS_LAST_USER: The last user cannot be removed.
-    - MS_NO_USER_VOTE: The user didn't vote the proposal.
+    - MS_NO_USER_VOTE: The user didn't vote for the proposal.
 
 """
 
