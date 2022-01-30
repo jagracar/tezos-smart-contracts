@@ -1,6 +1,6 @@
 {
     "name": "Teia Community multisig wallet / mini-DAO",
-    "description": "This contract allows a group of users to adminsiter funds in a safe way. It can also be used to create, vote and execute proposals.",
+    "description": "This contract allows a group of users to administer funds. It can also be used to create, vote and execute proposals.",
     "version": "1.0.0",
     "license": {
         "name": "MIT",
