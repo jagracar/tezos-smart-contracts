@@ -488,6 +488,17 @@ def test_balance_of():
         metadata={"": sp.pack("ipfs://ccc")},
         token_id=1).run(sender=admin)
 
+    # Check the balances using the off-chain view
+    scenario.verify(fa2.get_balance(sp.record(owner=user1.address, token_id=0)) == 10)
+    scenario.verify(fa2.get_balance(sp.record(owner=user2.address, token_id=1)) == 20)
+    scenario.verify(fa2.get_balance(sp.record(owner=user3.address, token_id=1)) == 5)
+
+    # Check that it fails if there is not row for that information in the ledger
+    scenario.verify(sp.is_failing(fa2.get_balance(sp.record(owner=user2.address, token_id=0))))
+    scenario.verify(sp.is_failing(fa2.get_balance(sp.record(owner=user3.address, token_id=0))))
+    scenario.verify(sp.is_failing(fa2.get_balance(sp.record(owner=user1.address, token_id=1))))
+    scenario.verify(sp.is_failing(fa2.get_balance(sp.record(owner=user1.address, token_id=10))))
+
     # Check that asking for the token balances fails if the token doesn't exist
     scenario += fa2.balance_of(sp.record(
         requests=[sp.record(owner=user1.address, token_id=10)],
@@ -511,3 +522,148 @@ def test_balance_of():
     scenario.verify(dummyContract.data.balances[(user1.address, 1)] == 0)
     scenario.verify(dummyContract.data.balances[(user2.address, 1)] == 20)
     scenario.verify(dummyContract.data.balances[(user3.address, 1)] == 5)
+
+
+@sp.add_test(name="Test update operators")
+def test_update_operators():
+    # Get the test environment
+    testEnvironment = get_test_environment()
+    scenario = testEnvironment["scenario"]
+    admin = testEnvironment["admin"]
+    user1 = testEnvironment["user1"]
+    user2 = testEnvironment["user2"]
+    user3 = testEnvironment["user3"]
+    fa2 = testEnvironment["fa2"]
+
+    # Mint two tokens
+    scenario += fa2.mint(
+        address=user1.address,
+        amount=10,
+        metadata={"": sp.pack("ipfs://aaa")},
+        token_id=0).run(sender=admin)
+    scenario += fa2.mint(
+        address=user2.address,
+        amount=20,
+        metadata={"": sp.pack("ipfs://bbb")},
+        token_id=1).run(sender=admin)
+
+    # Check that the operators informaion is empty
+    scenario.verify(~fa2.data.operators.contains(
+        sp.record(owner=user1.address, operator=user2.address, token_id=0)))
+    scenario.verify(~fa2.data.operators.contains(
+        sp.record(owner=user1.address, operator=user2.address, token_id=0)))
+
+    # Check that is not possible to change the operators if one is not the owner
+    scenario += fa2.update_operators([
+        sp.variant("add_operator", sp.record(
+            owner=user1.address,
+            operator=user2.address,
+            token_id=0))]).run(valid=False, sender=user2)
+    scenario += fa2.update_operators([
+        sp.variant("add_operator", sp.record(
+            owner=user1.address,
+            operator=user2.address,
+            token_id=0))]).run(valid=False, sender=user3)
+
+    # Check that the admin can add operators
+    scenario += fa2.update_operators([
+        sp.variant("add_operator", sp.record(
+            owner=user1.address,
+            operator=user2.address,
+            token_id=0))]).run(sender=admin)
+
+    # Check that the contract information has been updated
+    scenario.verify(fa2.data.operators.contains(
+        sp.record(owner=user1.address, operator=user2.address, token_id=0)))
+
+    # Check that the user can change the operators of token they own or might
+    # own in the future
+    scenario += fa2.update_operators([
+        sp.variant("add_operator", sp.record(
+            owner=user1.address,
+            operator=user3.address,
+            token_id=0)),
+        sp.variant("add_operator", sp.record(
+            owner=user1.address,
+            operator=user2.address,
+            token_id=1)),
+        sp.variant("add_operator", sp.record(
+            owner=user1.address,
+            operator=user3.address,
+            token_id=10)),
+        ]).run(sender=user1)
+
+    # Check that the contract information has been updated
+    scenario.verify(fa2.data.operators.contains(
+        sp.record(owner=user1.address, operator=user2.address, token_id=0)))
+    scenario.verify(fa2.data.operators.contains(
+        sp.record(owner=user1.address, operator=user3.address, token_id=0)))
+    scenario.verify(fa2.data.operators.contains(
+        sp.record(owner=user1.address, operator=user2.address, token_id=1)))
+    scenario.verify(fa2.data.operators.contains(
+        sp.record(owner=user1.address, operator=user3.address, token_id=10)))
+
+    # Check that adding and removing operators works at the same time
+    scenario += fa2.update_operators([
+        sp.variant("remove_operator", sp.record(
+            owner=user1.address,
+            operator=user3.address,
+            token_id=0)),
+        sp.variant("add_operator", sp.record(
+            owner=user1.address,
+            operator=user2.address,
+            token_id=10)),
+        sp.variant("remove_operator", sp.record(
+            owner=user1.address,
+            operator=user3.address,
+            token_id=10)),
+        ]).run(sender=user1)
+
+    # Check that the contract information has been updated
+    scenario.verify(fa2.data.operators.contains(
+        sp.record(owner=user1.address, operator=user2.address, token_id=0)))
+    scenario.verify(~fa2.data.operators.contains(
+        sp.record(owner=user1.address, operator=user3.address, token_id=0)))
+    scenario.verify(fa2.data.operators.contains(
+        sp.record(owner=user1.address, operator=user2.address, token_id=1)))
+    scenario.verify(fa2.data.operators.contains(
+        sp.record(owner=user1.address, operator=user2.address, token_id=10)))
+    scenario.verify(~fa2.data.operators.contains(
+        sp.record(owner=user1.address, operator=user3.address, token_id=10)))
+
+    # Check that removing an operator that doesn't exist works
+    scenario.verify(~fa2.data.operators.contains(
+        sp.record(owner=user1.address, operator=user3.address, token_id=100)))
+    scenario += fa2.update_operators([
+        sp.variant("remove_operator", sp.record(
+            owner=user1.address,
+            operator=user3.address,
+            token_id=100)),
+        ]).run(sender=user1)
+
+    # Check that the contract information has been updated
+    scenario.verify(~fa2.data.operators.contains(
+        sp.record(owner=user1.address, operator=user3.address, token_id=100)))
+
+    # Check operators cannot change the operators of editions that they don't own
+    scenario += fa2.update_operators([
+        sp.variant("add_operator", sp.record(
+            owner=user1.address,
+            operator=user3.address,
+            token_id=0))]).run(valid=False, sender=user2)
+    scenario += fa2.update_operators([
+        sp.variant("remove_operator", sp.record(
+            owner=user1.address,
+            operator=user2.address,
+            token_id=0))]).run(valid=False, sender=user2)
+
+    # Check that the admin can remove operators at will
+    scenario += fa2.update_operators([
+        sp.variant("remove_operator", sp.record(
+            owner=user1.address,
+            operator=user2.address,
+            token_id=0))]).run(sender=admin)
+
+    # Check that the contract information has been updated
+    scenario.verify(~fa2.data.operators.contains(
+        sp.record(owner=user1.address, operator=user2.address, token_id=0)))
