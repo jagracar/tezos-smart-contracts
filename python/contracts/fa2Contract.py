@@ -4,8 +4,8 @@ import smartpy as sp
 class FA2(sp.Contract):
     """This contract tries to simplify the FA2 contract template example in
     smartpy.io v0.8.4
-    
-    The contract follows the FA2 standard definition:
+
+    The contract follows the FA2 standard specification:
     https://gitlab.com/tezos/tzip/-/blob/master/proposals/tzip-12/tzip-12.md
 
     """
@@ -80,8 +80,7 @@ class FA2(sp.Contract):
         administrator.
 
         """
-        sp.verify(sp.sender == self.data.administrator,
-                  message="FA2_NOT_ADMIN")
+        sp.verify(sp.sender == self.data.administrator, message="FA2_NOT_ADMIN")
 
     def check_is_administrator_or_owner(self, owner):
         """Checks that the address that called the entry point is either the
