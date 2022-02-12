@@ -53,8 +53,8 @@ class FA2(sp.Contract):
             token_metadata=sp.TBigMap(sp.TNat, FA2.TOKEN_METADATA_VALUE_TYPE),
             # The token operators big map
             operators=sp.TBigMap(FA2.OPERATOR_KEY_TYPE, sp.TUnit),
-            # The total number of tokens minted so far
-            all_tokens=sp.TNat))
+            # A counter that tracks the total number of tokens minted so far
+            counter=sp.TNat))
 
         # Initialize the contract storage
         self.init(
@@ -64,7 +64,7 @@ class FA2(sp.Contract):
             total_supply=sp.big_map(),
             token_metadata=sp.big_map(),
             operators=sp.big_map(),
-            all_tokens=0)
+            counter=0)
 
         # Adds some flags and optimization levels
         self.add_flag("initial-cast")
@@ -164,12 +164,12 @@ class FA2(sp.Contract):
             self.data.ledger[ledger_key] = params.amount
 
         # Update the total supply and token metadata big maps
-        with sp.if_(params.token_id < self.data.all_tokens):
+        with sp.if_(params.token_id < self.data.counter):
             # Increase the token total supply
             self.data.total_supply[params.token_id] += params.amount
         with sp.else_():
             # Check that the token ids are consecutive
-            sp.verify(self.data.all_tokens == params.token_id,
+            sp.verify(self.data.counter == params.token_id,
                       message="Token-IDs should be consecutive")
 
             # Add the new big map rows
@@ -179,7 +179,7 @@ class FA2(sp.Contract):
                 token_info=params.metadata)
 
             # Increase the all tokens counter
-            self.data.all_tokens += 1
+            self.data.counter += 1
 
     @sp.entry_point
     def transfer(self, params):
@@ -349,14 +349,14 @@ class FA2(sp.Contract):
         """Returns how many tokens are in this FA2 contract.
 
         """
-        sp.result(self.data.all_tokens)
+        sp.result(self.data.counter)
 
     @sp.offchain_view(pure=True)
     def all_tokens(self):
         """Returns a list with all the token ids.
 
         """
-        sp.result(sp.range(0, self.data.all_tokens))
+        sp.result(sp.range(0, self.data.counter))
 
     @sp.offchain_view(pure=True)
     def total_supply(self, token_id):
