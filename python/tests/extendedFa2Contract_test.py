@@ -246,26 +246,14 @@ def test_transfer():
     scenario.verify(fa2.data.total_supply[token_id] == editions)
     scenario.verify(fa2.total_supply(token_id) == editions)
 
-    # Check that the admin can transfer the token
+    # Check that the admin cannot transfer the token
     scenario += fa2.transfer([
         sp.record(
             from_=user1.address,
             txs=[sp.record(to_=user2.address, token_id=token_id, amount=3)])
-        ]).run(sender=admin)
-
-    # Check that the contract information has been updated
-    scenario.verify(fa2.data.ledger[(user1.address, token_id)] == editions - 6)
-    scenario.verify(fa2.data.ledger[(user2.address, token_id)] == 3)
-    scenario.verify(fa2.data.ledger[(user3.address, token_id)] == 3)
-    scenario.verify(fa2.data.total_supply[token_id] == editions)
-    scenario.verify(fa2.total_supply(token_id) == editions)
-
-    # Check that the owner or the admin cannot transfer more tokens that the owner has
-    scenario += fa2.transfer([
-        sp.record(
-            from_=user1.address,
-            txs=[sp.record(to_=user2.address, token_id=token_id, amount=30)])
         ]).run(valid=False, sender=admin)
+
+    # Check that the owner cannot transfer more tokens than the ones they have
     scenario += fa2.transfer([
         sp.record(
             from_=user1.address,
@@ -282,14 +270,14 @@ def test_transfer():
     # Check that the owner can transfer their own editions
     scenario += fa2.transfer([
         sp.record(
-            from_=user2.address,
-            txs=[sp.record(to_=user3.address, token_id=token_id, amount=1)])
-        ]).run(sender=user2)
+            from_=user3.address,
+            txs=[sp.record(to_=user2.address, token_id=token_id, amount=1)])
+        ]).run(sender=user3)
 
     # Check that the contract information has been updated
-    scenario.verify(fa2.data.ledger[(user1.address, token_id)] == editions - 6)
-    scenario.verify(fa2.data.ledger[(user2.address, token_id)] == 2)
-    scenario.verify(fa2.data.ledger[(user3.address, token_id)] == 4)
+    scenario.verify(fa2.data.ledger[(user1.address, token_id)] == editions - 3)
+    scenario.verify(fa2.data.ledger[(user2.address, token_id)] == 1)
+    scenario.verify(fa2.data.ledger[(user3.address, token_id)] == 3 - 1)
     scenario.verify(fa2.data.total_supply[token_id] == editions)
     scenario.verify(fa2.total_supply(token_id) == editions)
 
@@ -307,9 +295,9 @@ def test_transfer():
         ]).run(sender=user2)
 
     # Check that the contract information has been updated
-    scenario.verify(fa2.data.ledger[(user1.address, token_id)] == editions - 6 - 5)
-    scenario.verify(fa2.data.ledger[(user2.address, token_id)] == 2)
-    scenario.verify(fa2.data.ledger[(user3.address, token_id)] == 4 + 5)
+    scenario.verify(fa2.data.ledger[(user1.address, token_id)] == editions - 3 - 5)
+    scenario.verify(fa2.data.ledger[(user2.address, token_id)] == 1)
+    scenario.verify(fa2.data.ledger[(user3.address, token_id)] == 3 - 1 + 5)
     scenario.verify(fa2.data.total_supply[token_id] == editions)
     scenario.verify(fa2.total_supply(token_id) == editions)
 
@@ -368,7 +356,7 @@ def test_complex_transfer():
     scenario.verify(fa2.data.ledger[(user3.address, 0)] == 3)
     scenario.verify(fa2.data.ledger[(user2.address, 1)] == 20)
 
-    # Check that the admin can transfer whatever token they want
+    # Check that the admin cannot transfer whatever token they want
     scenario += fa2.transfer([
         sp.record(
             from_=user1.address,
@@ -376,14 +364,7 @@ def test_complex_transfer():
         sp.record(
             from_=user2.address,
             txs=[sp.record(to_=user3.address, token_id=1, amount=5)])
-        ]).run(sender=admin)
-
-    # Check that the contract information has been updated
-    scenario.verify(fa2.data.ledger[(user1.address, 0)] == 10 - 2 - 3 - 1)
-    scenario.verify(fa2.data.ledger[(user2.address, 0)] == 2)
-    scenario.verify(fa2.data.ledger[(user3.address, 0)] == 4)
-    scenario.verify(fa2.data.ledger[(user2.address, 1)] == 20 - 5)
-    scenario.verify(fa2.data.ledger[(user3.address, 1)] == 5)
+        ]).run(valid=False, sender=admin)
 
     # Check that owners can transfer tokens to themselves
     scenario += fa2.transfer([
@@ -396,11 +377,10 @@ def test_complex_transfer():
         ]).run(sender=user2)
 
     # Check that the contract information has been updated
-    scenario.verify(fa2.data.ledger[(user1.address, 0)] == 10 - 2 - 3 - 1)
+    scenario.verify(fa2.data.ledger[(user1.address, 0)] == 10 - 2 - 3)
     scenario.verify(fa2.data.ledger[(user2.address, 0)] == 2)
-    scenario.verify(fa2.data.ledger[(user3.address, 0)] == 4)
-    scenario.verify(fa2.data.ledger[(user2.address, 1)] == 20 - 5)
-    scenario.verify(fa2.data.ledger[(user3.address, 1)] == 5)
+    scenario.verify(fa2.data.ledger[(user3.address, 0)] == 3)
+    scenario.verify(fa2.data.ledger[(user2.address, 1)] == 20)
 
     # Make the second user as operator of the first user token
     scenario += fa2.update_operators([sp.variant("add_operator", sp.record(
@@ -419,11 +399,11 @@ def test_complex_transfer():
         ]).run(sender=user2)
 
     # Check that the contract information has been updated
-    scenario.verify(fa2.data.ledger[(user1.address, 0)] == 10 - 2 - 3 - 1 - 2)
+    scenario.verify(fa2.data.ledger[(user1.address, 0)] == 10 - 2 - 3 - 2)
     scenario.verify(fa2.data.ledger[(user2.address, 0)] == 2)
-    scenario.verify(fa2.data.ledger[(user3.address, 0)] == 4 + 2)
-    scenario.verify(fa2.data.ledger[(user2.address, 1)] == 20 - 5 - 1)
-    scenario.verify(fa2.data.ledger[(user3.address, 1)] == 5 + 1)
+    scenario.verify(fa2.data.ledger[(user3.address, 0)] == 3 + 2)
+    scenario.verify(fa2.data.ledger[(user2.address, 1)] == 20 - 1)
+    scenario.verify(fa2.data.ledger[(user3.address, 1)] == 1)
 
 
 @sp.add_test(name="Test balance of")
@@ -501,20 +481,6 @@ def test_balance_of():
     scenario.verify(dummyContract.data.balances[(user2.address, 1)] == 20)
     scenario.verify(dummyContract.data.balances[(user3.address, 1)] == 5)
 
-    # Pause the contract
-    scenario += fa2.set_pause(True).run(sender=admin)
-
-    # Ceck that now ask for the token balances fails
-    scenario += fa2.balance_of(sp.record(
-        requests=[
-            sp.record(owner=user1.address, token_id=0),
-            sp.record(owner=user2.address, token_id=0),
-            sp.record(owner=user3.address, token_id=0),
-            sp.record(owner=user1.address, token_id=1),
-            sp.record(owner=user2.address, token_id=1),
-            sp.record(owner=user3.address, token_id=1)],
-        callback=c)).run(valid=False, sender=user3)
-
 
 @sp.add_test(name="Test update operators")
 def test_update_operators():
@@ -557,16 +523,12 @@ def test_update_operators():
             operator=user2.address,
             token_id=0))]).run(valid=False, sender=user3)
 
-    # Check that the admin can add operators
+    # Check that the admin cannot add operators
     scenario += fa2.update_operators([
         sp.variant("add_operator", sp.record(
             owner=user1.address,
             operator=user2.address,
-            token_id=0))]).run(sender=admin)
-
-    # Check that the contract information has been updated
-    scenario.verify(fa2.is_operator(
-        sp.record(owner=user1.address, operator=user2.address, token_id=0)))
+            token_id=0))]).run(valid=False, sender=admin)
 
     # Check that the user can change the operators of token they own or might
     # own in the future
@@ -586,8 +548,6 @@ def test_update_operators():
         ]).run(sender=user1)
 
     # Check that the contract information has been updated
-    scenario.verify(fa2.is_operator(
-        sp.record(owner=user1.address, operator=user2.address, token_id=0)))
     scenario.verify(fa2.is_operator(
         sp.record(owner=user1.address, operator=user3.address, token_id=0)))
     scenario.verify(fa2.is_operator(
@@ -612,8 +572,6 @@ def test_update_operators():
         ]).run(sender=user1)
 
     # Check that the contract information has been updated
-    scenario.verify(fa2.is_operator(
-        sp.record(owner=user1.address, operator=user2.address, token_id=0)))
     scenario.verify(~fa2.is_operator(
         sp.record(owner=user1.address, operator=user3.address, token_id=0)))
     scenario.verify(fa2.is_operator(
@@ -649,16 +607,12 @@ def test_update_operators():
             operator=user2.address,
             token_id=0))]).run(valid=False, sender=user2)
 
-    # Check that the admin can remove operators at will
+    # Check that the admin cannot remove operators at will
     scenario += fa2.update_operators([
         sp.variant("remove_operator", sp.record(
             owner=user1.address,
             operator=user2.address,
-            token_id=0))]).run(sender=admin)
-
-    # Check that the contract information has been updated
-    scenario.verify(~fa2.is_operator(
-        sp.record(owner=user1.address, operator=user2.address, token_id=0)))
+            token_id=0))]).run(valid=False, sender=admin)
 
 
 @sp.add_test(name="Test set administrator")
@@ -706,61 +660,3 @@ def test_set_metadata():
     # Check that the two metadata entries are present
     scenario.verify(fa2.data.metadata[new_metadata.k] == new_metadata.v)
     scenario.verify(fa2.data.metadata[extra_metadata.k] == extra_metadata.v)
-
-
-@sp.add_test(name="Test set pause")
-def test_set_pause():
-    # Get the test environment
-    testEnvironment = get_test_environment()
-    scenario = testEnvironment["scenario"]
-    admin = testEnvironment["admin"]
-    user1 = testEnvironment["user1"]
-    user2 = testEnvironment["user2"]
-    fa2 = testEnvironment["fa2"]
-
-    # Mint a token
-    scenario += fa2.mint(
-        address=user1.address,
-        amount=10,
-        metadata={"": sp.pack("ipfs://aaa")},
-        token_id=0).run(sender=admin)
-
-    # Check that the owner can transfer the token
-    scenario += fa2.transfer([
-        sp.record(
-            from_=user1.address,
-            txs=[sp.record(to_=user2.address, token_id=0, amount=3)])
-        ]).run(sender=user1)
-
-    # Check that the user cannot pause the contract
-    scenario += fa2.set_pause(True).run(valid=False, sender=user1)
-
-    # Pause the contract
-    scenario += fa2.set_pause(True).run(sender=admin)
-
-    # Check that the contract information has been updated
-    scenario.verify(fa2.data.paused)
-
-    # Check that now is not possible to transfer tokens
-    scenario += fa2.transfer([
-        sp.record(
-            from_=user1.address,
-            txs=[sp.record(to_=user2.address, token_id=0, amount=3)])
-        ]).run(valid=False, sender=user1)
-
-    # Check that it's still possible to mint
-    scenario += fa2.mint(
-        address=user1.address,
-        amount=10,
-        metadata={"": sp.pack("ipfs://bbb")},
-        token_id=1).run(sender=admin)
-
-    # Unpause the contract
-    scenario += fa2.set_pause(False).run(sender=admin)
-
-    # Check that it's possible to transfer tokens again
-    scenario += fa2.transfer([
-        sp.record(
-            from_=user1.address,
-            txs=[sp.record(to_=user2.address, token_id=0, amount=3)])
-        ]).run(sender=user1)

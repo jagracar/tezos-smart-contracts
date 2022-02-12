@@ -54,9 +54,7 @@ class FA2(sp.Contract):
             # The token operators big map
             operators=sp.TBigMap(FA2.OPERATOR_KEY_TYPE, sp.TUnit),
             # The total number of tokens minted so far
-            all_tokens=sp.TNat,
-            # Flag to indicate if the contract is paused or not
-            paused=sp.TBool))
+            all_tokens=sp.TNat))
 
         # Initialize the contract storage
         self.init(
@@ -66,8 +64,7 @@ class FA2(sp.Contract):
             total_supply=sp.big_map(),
             token_metadata=sp.big_map(),
             operators=sp.big_map(),
-            all_tokens=0,
-            paused=False)
+            all_tokens=0)
 
         # Adds some flags and optimization levels
         self.add_flag("initial-cast")
@@ -81,7 +78,6 @@ class FA2(sp.Contract):
                 "FA2 contract template example in smartpy.io v0.9.0",
             "version": "v1.0.0",
             "authors": [
-                "Seb Mondet <https://seb.mondet.org>",
                 "Javier Gracia Carpio <https://twitter.com/jagracar>"],
             "homepage": "https://github.com/jagracar/tezos-smart-contracts",
             "source": {
@@ -112,21 +108,19 @@ class FA2(sp.Contract):
         """
         sp.verify(sp.sender == self.data.administrator, message="FA2_NOT_ADMIN")
 
-    def check_is_administrator_or_owner(self, owner):
-        """Checks that the address that called the entry point is either the
-        contract administrator or the token owner.
+    def check_is_owner(self, owner):
+        """Checks that the address that called the entry point is the owner of
+        the token editions.
 
         """
-        sp.verify((sp.sender == self.data.administrator) | (sp.sender == owner),
-                  message="FA2_NOT_ADMIN_OR_OPERATOR")
+        sp.verify(sp.sender == owner, message="FA2_SENDER_IS_NOT_OWNER")
 
     def check_is_operator(self, owner, token_id):
         """Checks that the address that called the entry point is allowed to
         transfer the token.
 
         """
-        sp.verify((sp.sender == self.data.administrator) | 
-                  (sp.sender == owner) | 
+        sp.verify((sp.sender == owner) | 
                   (self.data.operators.contains(sp.record(
                       owner=owner, operator=sp.sender, token_id=token_id))),
                   message="FA2_NOT_OPERATOR")
@@ -144,12 +138,6 @@ class FA2(sp.Contract):
         """
         sp.verify(self.data.ledger[(owner, token_id)] >= amount,
                   message="FA2_INSUFFICIENT_BALANCE")
-
-    def check_is_not_paused(self):
-        """Checks that the contract is not paused.
-
-        """
-        sp.verify(~self.data.paused, message="FA2_PAUSED")
 
     @sp.entry_point
     def mint(self, params):
@@ -207,9 +195,6 @@ class FA2(sp.Contract):
                 amount=sp.TNat).layout(("to_", ("token_id", "amount"))))).layout(
                         ("from_", "txs"))))
 
-        # Checks that the contract is not paused
-        self.check_is_not_paused()
-
         # Loop over the list of transfers
         with sp.for_("transfer", params) as transfer:
            with sp.for_("tx", transfer.txs) as tx:
@@ -253,9 +238,6 @@ class FA2(sp.Contract):
                 balance=sp.TNat).layout(("request", "balance"))))).layout(
                     ("requests", "callback")))
 
-        # Checks that the contract is not paused
-        self.check_is_not_paused()
-
         def process_request(request):
             # Check that the token exists
             self.check_token_exists(request.token_id)
@@ -293,14 +275,14 @@ class FA2(sp.Contract):
         with sp.for_("update_operator", params) as update_operator:
             with update_operator.match_cases() as arg:
                 with arg.match("add_operator") as operator_key:
-                    # Check that the sender is the administrator or the token owner
-                    self.check_is_administrator_or_owner(operator_key.owner)
+                    # Check that the sender is the token owner
+                    self.check_is_owner(operator_key.owner)
 
                     # Add the new operator to the operators big map
                     self.data.operators[operator_key] = sp.unit
                 with arg.match("remove_operator") as operator_key:
-                    # Check that the sender is the administrator or the token owner
-                    self.check_is_administrator_or_owner(operator_key.owner)
+                    # Check that the sender is the token owner
+                    self.check_is_owner(operator_key.owner)
 
                     # Remove the operator from the operators big map
                     del self.data.operators[operator_key]
@@ -334,20 +316,6 @@ class FA2(sp.Contract):
 
         # Update the contract metadata
         self.data.metadata[params.k] = params.v
-
-    @sp.entry_point
-    def set_pause(self, pause):
-        """Pauses or unpauses the contract.
-
-        """
-        # Define the input parameter data type
-        sp.set_type(pause, sp.TBool)
-
-        # Check that the administrator executed the entry point
-        self.check_is_administrator()
-
-        # Se the new paused state
-        self.data.paused = pause
 
     @sp.offchain_view(pure=True)
     def get_balance(self, params):

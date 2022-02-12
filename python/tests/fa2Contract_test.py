@@ -504,7 +504,7 @@ def test_balance_of():
     # Pause the contract
     scenario += fa2.set_pause(True).run(sender=admin)
 
-    # Ceck that now ask for the token balances fails
+    # Ceck that now asking for the token balances fails
     scenario += fa2.balance_of(sp.record(
         requests=[
             sp.record(owner=user1.address, token_id=0),
