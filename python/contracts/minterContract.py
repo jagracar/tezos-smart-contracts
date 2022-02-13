@@ -32,6 +32,14 @@ class MinterContract(sp.Contract):
             metadata=metadata,
             fa2=fa2)
 
+    def check_is_administrator(self):
+        """Checks that the address that called the entry point is the contract
+        administrator.
+
+        """
+        sp.verify(sp.sender == self.data.administrator,
+                  message="MINTER_NOT_ADMIN")
+
     @sp.entry_point
     def single_creator_mint(self, params):
         """Mints a new FA2 token with only one creator.
@@ -87,6 +95,21 @@ class MinterContract(sp.Contract):
                 donations=params.donations),
             amount=sp.mutez(0),
             destination=fa2_mint_handle)
+
+    @sp.entry_point
+    def set_administrator(self, administrator):
+        """Sets a new contract administrator.
+
+        """
+        # Define the input parameter data type
+        sp.set_type(administrator, sp.TAddress)
+
+        # Check that the administrator executed the entry point
+        self.check_is_administrator()
+
+        # Set the new administrator
+        self.data.administrator = administrator
+
 
 sp.add_compilation_target("Minter", MinterContract(
     administrator=sp.address("tz1M9CMEtsXm3QxA7FmMU2Qh7xzsuGXVbcDr"),

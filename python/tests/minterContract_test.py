@@ -151,3 +151,23 @@ def test_single_creator_mint():
     scenario.verify(sp.len(fa2.get_mint_parameters(0).donations) == 0)
     scenario.verify(sp.len(fa2.get_mint_parameters(1).creators) == 1)
     scenario.verify(sp.len(fa2.get_mint_parameters(1).donations) == 2)
+
+@sp.add_test(name="Test set administrator")
+def test_set_administrator():
+    # Get the test environment
+    testEnvironment = get_test_environment()
+    scenario = testEnvironment["scenario"]
+    admin = testEnvironment["admin"]
+    user1 = testEnvironment["user1"]
+    minter = testEnvironment["minter"]
+
+    # Check the original administrator
+    scenario.verify(minter.data.administrator == admin.address)
+
+    # Check that only the admin can set the new administrator
+    new_administrator = user1.address
+    scenario += minter.set_administrator(new_administrator).run(valid=False, sender=user1)
+    scenario += minter.set_administrator(new_administrator).run(sender=admin)
+
+    # Check that the administrator has been updated
+    scenario.verify(minter.data.administrator == new_administrator)
