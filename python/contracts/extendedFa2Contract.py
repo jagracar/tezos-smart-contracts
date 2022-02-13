@@ -14,7 +14,7 @@ class FA2(sp.Contract):
     """
 
     LEDGER_KEY_TYPE = sp.TPair(
-        # The token owner
+        # The owner of the token editions
         sp.TAddress,
         # The token id
         sp.TNat)
@@ -26,10 +26,26 @@ class FA2(sp.Contract):
         token_info=sp.TMap(sp.TString, sp.TBytes)).layout(
             ("token_id", "token_info"))
 
+    USER_TYPE = sp.TRecord(
+        # The user address
+        address=sp.TAddress,
+        # The user royalties in per mille (100 is 10%)
+        royalties=sp.TNat).layout(
+            ("address", "royalties"))
+
+    MINT_PARAMETERS_VALUE_TYPE = sp.TRecord(
+        # The token original minter
+        minter=USER_TYPE,
+        # The token creators
+        creators=sp.TList(USER_TYPE),
+        # The token donations
+        donations=sp.TList(USER_TYPE)).layout(
+            ("minter", ("creators", "donations")))
+
     OPERATOR_KEY_TYPE = sp.TRecord(
-        # The token owner
+        # The owner of the token editions
         owner=sp.TAddress,
-        # The operator allowed by the owner to transfer the token
+        # The operator allowed by the owner to transfer the token editions
         operator=sp.TAddress,
         # The token id
         token_id=sp.TNat).layout(
@@ -45,13 +61,15 @@ class FA2(sp.Contract):
             administrator=sp.TAddress,
             # The contract metadata
             metadata=sp.TBigMap(sp.TString, sp.TBytes),
-            # The ledger bigmap where the token owners are listed
+            # The ledger bigmap where the tokens owners are listed
             ledger=sp.TBigMap(FA2.LEDGER_KEY_TYPE, sp.TNat),
             # The tokens total supply
             total_supply=sp.TBigMap(sp.TNat, sp.TNat),
             # The tokens metadata big map
             token_metadata=sp.TBigMap(sp.TNat, FA2.TOKEN_METADATA_VALUE_TYPE),
-            # The token operators big map
+            # The token mint parameters (minter, creators, royalties)
+            mint_parameters=sp.TBigMap(sp.TNat, FA2.MINT_PARAMETERS_VALUE_TYPE),
+            # The tokens operators big map
             operators=sp.TBigMap(FA2.OPERATOR_KEY_TYPE, sp.TUnit),
             # A counter that tracks the total number of tokens minted so far
             counter=sp.TNat))
@@ -63,6 +81,7 @@ class FA2(sp.Contract):
             ledger=sp.big_map(),
             total_supply=sp.big_map(),
             token_metadata=sp.big_map(),
+            mint_parameters=sp.big_map(),
             operators=sp.big_map(),
             counter=0)
 
@@ -77,8 +96,7 @@ class FA2(sp.Contract):
             "description" : "This contract tries to simplify and extend the "
                 "FA2 contract template example in smartpy.io v0.9.0",
             "version": "v1.0.0",
-            "authors": [
-                "Javier Gracia Carpio <https://twitter.com/jagracar>"],
+            "authors": ["Javier Gracia Carpio <https://twitter.com/jagracar>"],
             "homepage": "https://github.com/jagracar/tezos-smart-contracts",
             "source": {
                 "tools": ["SmartPy 0.9.0"],
@@ -129,8 +147,7 @@ class FA2(sp.Contract):
         """Checks that the given token exists.
 
         """
-        sp.verify(self.data.token_metadata.contains(token_id),
-                  message="FA2_TOKEN_UNDEFINED")
+        sp.verify(token_id < self.data.counter, message="FA2_TOKEN_UNDEFINED")
 
     def check_sufficient_balance(self, owner, token_id, amount):
         """Checks that the owner has enough editions of the given token.
@@ -146,40 +163,36 @@ class FA2(sp.Contract):
         """
         # Define the input parameter data type
         sp.set_type(params, sp.TRecord(
-            address=sp.TAddress,
             amount=sp.TNat,
             metadata=sp.TMap(sp.TString, sp.TBytes),
-            token_id=sp.TNat).layout(
-                ("address", ("amount", ("metadata", "token_id")))))
+            minter=FA2.USER_TYPE,
+            creators=sp.TList(FA2.USER_TYPE),
+            donations=sp.TList(FA2.USER_TYPE)).layout(
+                ("amount", ("metadata", ("minter", ("creators", "donations"))))))
 
         # Check that the administrator executed the entry point
         self.check_is_administrator()
 
-        # Update the ledger big map
-        ledger_key = sp.pair(params.address, params.token_id)
+        # Check that the number of editions is not zero
+        sp.verify(params.amount != 0, message="FA2_ZERO_EDITIONS")
 
-        with sp.if_(self.data.ledger.contains(ledger_key)):
-            self.data.ledger[ledger_key] += params.amount
-        with sp.else_():
-            self.data.ledger[ledger_key] = params.amount
+        # Check that there is at least one creator
+        sp.verify(sp.len(params.creators) > 0, message="FA2_NO_CREATORS")
 
-        # Update the total supply and token metadata big maps
-        with sp.if_(params.token_id < self.data.counter):
-            # Increase the token total supply
-            self.data.total_supply[params.token_id] += params.amount
-        with sp.else_():
-            # Check that the token ids are consecutive
-            sp.verify(self.data.counter == params.token_id,
-                      message="Token-IDs should be consecutive")
+        # Update the big maps
+        token_id = self.data.counter
+        self.data.ledger[(params.minter.address, token_id)] = params.amount
+        self.data.total_supply[token_id] = params.amount
+        self.data.token_metadata[token_id] = sp.record(
+            token_id=token_id,
+            token_info=params.metadata)
+        self.data.mint_parameters[token_id] = sp.record(
+            minter=params.minter,
+            creators=params.creators,
+            donations=params.donations)
 
-            # Add the new big map rows
-            self.data.total_supply[params.token_id] = params.amount
-            self.data.token_metadata[params.token_id] = sp.record(
-                token_id=params.token_id,
-                token_info=params.metadata)
-
-            # Increase the all tokens counter
-            self.data.counter += 1
+        # Increase the tokens counter
+        self.data.counter += 1
 
     @sp.entry_point
     def transfer(self, params):
@@ -197,7 +210,7 @@ class FA2(sp.Contract):
 
         # Loop over the list of transfers
         with sp.for_("transfer", params) as transfer:
-           with sp.for_("tx", transfer.txs) as tx:
+            with sp.for_("tx", transfer.txs) as tx:
                 # Check that the sender is one of the token operators
                 self.check_is_operator(transfer.from_, tx.token_id)
 
@@ -342,7 +355,7 @@ class FA2(sp.Contract):
         sp.set_type(token_id, sp.TNat)
 
         # Return true if the token exists
-        sp.result(self.data.token_metadata.contains(token_id))
+        sp.result(token_id < self.data.counter)
 
     @sp.offchain_view(pure=True)
     def count_tokens(self):

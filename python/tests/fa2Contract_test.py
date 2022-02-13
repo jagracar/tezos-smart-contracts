@@ -107,6 +107,7 @@ def test_mint():
     scenario.verify(fa2.data.all_tokens == token_id + 1)
     scenario.verify(fa2.count_tokens() == token_id + 1)
     scenario.verify(fa2.does_token_exist(token_id))
+    scenario.verify(~fa2.does_token_exist(token_id + 1))
     scenario.verify(sp.len(fa2.all_tokens()) == 1)
     scenario.verify(sp.len(fa2.all_tokens()) == 1)
     scenario.verify(fa2.total_supply(token_id) == editions)
@@ -539,7 +540,7 @@ def test_update_operators():
         metadata={"": sp.pack("ipfs://bbb")},
         token_id=1).run(sender=admin)
 
-    # Check that the operators informaion is empty
+    # Check that the operators information is empty
     scenario.verify(~fa2.is_operator(
         sp.record(owner=user1.address, operator=user2.address, token_id=0)))
     scenario.verify(~fa2.is_operator(
@@ -649,7 +650,7 @@ def test_update_operators():
             operator=user2.address,
             token_id=0))]).run(valid=False, sender=user2)
 
-    # Check that the admin can remove operators at will
+    # Check that the admin can remove operators
     scenario += fa2.update_operators([
         sp.variant("remove_operator", sp.record(
             owner=user1.address,

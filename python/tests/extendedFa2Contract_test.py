@@ -49,6 +49,8 @@ def get_test_environment():
     user1 = sp.test_account("user1")
     user2 = sp.test_account("user2")
     user3 = sp.test_account("user3")
+    ngo1 = sp.test_account("ngo1")
+    ngo2 = sp.test_account("ngo2")
 
     # Initialize the extended FA2 contract
     fa2 = extendedFa2Contract.FA2(
@@ -61,12 +63,14 @@ def get_test_environment():
 
     # Save all the variables in a test environment dictionary
     testEnvironment = {
-        "scenario" : scenario,
-        "admin" : admin,
-        "user1" : user1,
-        "user2" : user2,
-        "user3" : user3,
-        "fa2" : fa2}
+        "scenario": scenario,
+        "admin": admin,
+        "user1": user1,
+        "user2": user2,
+        "user3": user3,
+        "ngo1": ngo1,
+        "ngo2": ngo2,
+        "fa2": fa2}
 
     return testEnvironment
 
@@ -79,124 +83,103 @@ def test_mint():
     admin = testEnvironment["admin"]
     user1 = testEnvironment["user1"]
     user2 = testEnvironment["user2"]
+    ngo1 = testEnvironment["ngo1"]
+    ngo2 = testEnvironment["ngo2"]
     fa2 = testEnvironment["fa2"]
 
     # Check that a normal user cannot mint
-    address = user1.address
     editions = 5
-    metadata = {"": sp.pack("ipfs://fff")}
-    token_id = 0
+    metadata = {"": sp.pack("ipfs://aaa")}
+    minter = sp.record(address=user1.address, royalties=0)
+    creators = [sp.record(address=user1.address, royalties=50),
+                sp.record(address=user2.address, royalties=100)]
+    donations = []
     scenario += fa2.mint(
-        address=address,
         amount=editions,
         metadata=metadata,
-        token_id=token_id).run(valid=False, sender=user1)
+        minter=minter,
+        creators=creators,
+        donations=donations).run(valid=False, sender=user1)
 
     # Check that the admin can mint
     scenario += fa2.mint(
-        address=address,
         amount=editions,
         metadata=metadata,
-        token_id=token_id).run(sender=admin)
+        minter=minter,
+        creators=creators,
+        donations=donations).run(sender=admin)
 
     # Check that the contract information has been updated
-    scenario.verify(fa2.data.ledger[(address, token_id)] == editions)
-    scenario.verify(fa2.data.total_supply[token_id] == editions)
-    scenario.verify(fa2.data.token_metadata[token_id].token_id == token_id)
-    scenario.verify(fa2.data.token_metadata[token_id].token_info[""] == metadata[""])
-    scenario.verify(fa2.data.counter == token_id + 1)
-    scenario.verify(fa2.count_tokens() == token_id + 1)
-    scenario.verify(fa2.does_token_exist(token_id))
+    scenario.verify(fa2.data.ledger[(minter.address, 0)] == editions)
+    scenario.verify(fa2.data.total_supply[0] == editions)
+    scenario.verify(fa2.data.token_metadata[0].token_id == 0)
+    scenario.verify(fa2.data.token_metadata[0].token_info[""] == metadata[""])
+    scenario.verify(fa2.data.mint_parameters[0].minter.address == user1.address)
+    scenario.verify(fa2.data.mint_parameters[0].minter.royalties == 0)
+    scenario.verify(sp.len(fa2.data.mint_parameters[0].creators) == 2)
+    scenario.verify(sp.len(fa2.data.mint_parameters[0].donations) == 0)
+    scenario.verify(fa2.data.counter == 1)
+    scenario.verify(fa2.does_token_exist(0))
+    scenario.verify(~fa2.does_token_exist(1))
+    scenario.verify(fa2.count_tokens() == 1)
     scenario.verify(sp.len(fa2.all_tokens()) == 1)
-    scenario.verify(sp.len(fa2.all_tokens()) == 1)
-    scenario.verify(fa2.total_supply(token_id) == editions)
+    scenario.verify(fa2.total_supply(0) == editions)
 
-    # Check that it's possible to mint again the same token id
-    new_metadata = {"": sp.pack("ipfs://zzz")}
+    # Check that minting fails if the number of editions is zero
     scenario += fa2.mint(
-        address=address,
-        amount=editions,
-        metadata=new_metadata,
-        token_id=token_id).run(sender=admin)
-
-    # Check that the contract information has been updated
-    scenario.verify(fa2.data.ledger[(address, token_id)] == 2 * editions)
-    scenario.verify(fa2.data.total_supply[token_id] == 2 * editions)
-    scenario.verify(fa2.total_supply(token_id) == 2 * editions)
-
-    # Check that it still contrains the old token metadata and the number of
-    # tokens didn't increase
-    scenario.verify(fa2.data.token_metadata[token_id].token_info[""] == metadata[""])
-    scenario.verify(fa2.data.counter == token_id + 1)
-    scenario.verify(fa2.count_tokens() == token_id + 1)
-    scenario.verify(fa2.does_token_exist(token_id))
-    scenario.verify(sp.len(fa2.all_tokens()) == 1)
-
-    # Check that it's possible to mint again the same token id with another address
-    new_address = user2.address
-    scenario += fa2.mint(
-        address=new_address,
-        amount=editions,
-        metadata=new_metadata,
-        token_id=token_id).run(sender=admin)
-
-    # Check that the contract information has been updated
-    scenario.verify(fa2.data.ledger[(address, token_id)] == 2 * editions)
-    scenario.verify(fa2.data.ledger[(new_address, token_id)] == editions)
-    scenario.verify(fa2.data.total_supply[token_id] == 3 * editions)
-    scenario.verify(fa2.data.token_metadata[token_id].token_info[""] == metadata[""])
-    scenario.verify(fa2.data.counter == token_id + 1)
-    scenario.verify(fa2.count_tokens() == token_id + 1)
-    scenario.verify(fa2.does_token_exist(token_id))
-    scenario.verify(sp.len(fa2.all_tokens()) == 1)
-    scenario.verify(fa2.total_supply(token_id) == 3 * editions)
-
-    # Check that minting doesn't fail if the number of editions is zero
-    scenario += fa2.mint(
-        address=address,
         amount=0,
-        metadata=new_metadata,
-        token_id=token_id).run(sender=admin)
+        metadata=metadata,
+        minter=minter,
+        creators=creators,
+        donations=donations).run(valid=False, sender=admin)
 
-    # Check that the contract information has been updated
-    scenario.verify(fa2.data.ledger[(address, token_id)] == 2 * editions)
-    scenario.verify(fa2.data.ledger[(new_address, token_id)] == editions)
-    scenario.verify(fa2.data.total_supply[token_id] == 3 * editions)
-    scenario.verify(sp.len(fa2.all_tokens()) == 1)
-    scenario.verify(fa2.total_supply(token_id) == 3 * editions)
-
-    # Check that minting fails if the token ids are not consecutive
+    # Check that minting fails if the creators is zero
     scenario += fa2.mint(
-        address=address,
-        amount=0,
-        metadata=new_metadata,
-        token_id=token_id + 4).run(valid=False, sender=admin)
+        amount=editions,
+        metadata=metadata,
+        minter=minter,
+        creators=[],
+        donations=donations).run(valid=False, sender=admin)
 
     # Mint the next token
-    new_editions = 20
-    new_token_id = token_id + 1
+    new_editions = 5
+    new_metadata = {"": sp.pack("ipfs://bbb")}
+    new_minter = sp.record(address=user2.address, royalties=0)
+    new_creators = [sp.record(address=user2.address, royalties=50)]
+    new_donations = [sp.record(address=ngo1.address, royalties=100),
+                     sp.record(address=ngo2.address, royalties=100)]
     scenario += fa2.mint(
-        address=new_address,
         amount=new_editions,
         metadata=new_metadata,
-        token_id=new_token_id).run(sender=admin)
+        minter=new_minter,
+        creators=new_creators,
+        donations=new_donations).run(sender=admin)
 
     # Check that the contract information has been updated
-    scenario.verify(fa2.data.ledger[(address, token_id)] == 2 * editions)
-    scenario.verify(fa2.data.ledger[(new_address, token_id)] == editions)
-    scenario.verify(fa2.data.ledger[(new_address, new_token_id)] == new_editions)
-    scenario.verify(fa2.data.total_supply[token_id] == 3 * editions)
-    scenario.verify(fa2.data.total_supply[new_token_id] == new_editions)
-    scenario.verify(fa2.data.token_metadata[token_id].token_id == token_id)
-    scenario.verify(fa2.data.token_metadata[token_id].token_info[""] == metadata[""])
-    scenario.verify(fa2.data.token_metadata[new_token_id].token_id == new_token_id)
-    scenario.verify(fa2.data.token_metadata[new_token_id].token_info[""] == new_metadata[""])
-    scenario.verify(fa2.data.counter == new_token_id + 1)
-    scenario.verify(fa2.count_tokens() == new_token_id + 1)
-    scenario.verify(fa2.does_token_exist(new_token_id))
+    scenario.verify(fa2.data.ledger[(minter.address, 0)] == editions)
+    scenario.verify(fa2.data.ledger[(new_minter.address, 1)] == new_editions)
+    scenario.verify(fa2.data.total_supply[0] == editions)
+    scenario.verify(fa2.data.total_supply[1] == new_editions)
+    scenario.verify(fa2.data.token_metadata[0].token_id == 0)
+    scenario.verify(fa2.data.token_metadata[0].token_info[""] == metadata[""])
+    scenario.verify(fa2.data.token_metadata[1].token_id == 1)
+    scenario.verify(fa2.data.token_metadata[1].token_info[""] == new_metadata[""])
+    scenario.verify(fa2.data.mint_parameters[0].minter.address == user1.address)
+    scenario.verify(fa2.data.mint_parameters[0].minter.royalties == 0)
+    scenario.verify(sp.len(fa2.data.mint_parameters[0].creators) == 2)
+    scenario.verify(sp.len(fa2.data.mint_parameters[0].donations) == 0)
+    scenario.verify(fa2.data.mint_parameters[1].minter.address == user2.address)
+    scenario.verify(fa2.data.mint_parameters[1].minter.royalties == 0)
+    scenario.verify(sp.len(fa2.data.mint_parameters[1].creators) == 1)
+    scenario.verify(sp.len(fa2.data.mint_parameters[1].donations) == 2)
+    scenario.verify(fa2.data.counter == 2)
+    scenario.verify(fa2.does_token_exist(0))
+    scenario.verify(fa2.does_token_exist(1))
+    scenario.verify(~fa2.does_token_exist(2))
+    scenario.verify(fa2.count_tokens() == 2)
     scenario.verify(sp.len(fa2.all_tokens()) == 2)
-    scenario.verify(fa2.total_supply(token_id) == 3 * editions)
-    scenario.verify(fa2.total_supply(new_token_id) == new_editions)
+    scenario.verify(fa2.total_supply(0) == editions)
+    scenario.verify(fa2.total_supply(1) == new_editions)
 
 
 @sp.add_test(name="Test transfer")
@@ -212,94 +195,97 @@ def test_transfer():
 
     # Mint a token
     editions = 15
-    metadata = {"": sp.pack("ipfs://fff")}
-    token_id = 0
+    metadata = {"": sp.pack("ipfs://aaa")}
+    minter = sp.record(address=user1.address, royalties=0)
+    creators = [sp.record(address=user1.address, royalties=50)]
+    donations = []
     scenario += fa2.mint(
-        address=user1.address,
         amount=editions,
         metadata=metadata,
-        token_id=token_id).run(sender=admin)
+        minter=minter,
+        creators=creators,
+        donations=donations).run(sender=admin)
 
     # Check that the contract information has been updated
-    scenario.verify(fa2.data.ledger[(user1.address, token_id)] == editions)
-    scenario.verify(fa2.data.total_supply[token_id] == editions)
-    scenario.verify(fa2.data.token_metadata[token_id].token_id == token_id)
-    scenario.verify(fa2.total_supply(token_id) == editions)
+    scenario.verify(fa2.data.ledger[(user1.address, 0)] == editions)
+    scenario.verify(fa2.data.total_supply[0] == editions)
+    scenario.verify(fa2.data.token_metadata[0].token_id == 0)
+    scenario.verify(fa2.total_supply(0) == editions)
 
     # Check that another user cannot transfer the token
     scenario += fa2.transfer([
         sp.record(
             from_=user1.address,
-            txs=[sp.record(to_=user3.address, token_id=token_id, amount=3)])
+            txs=[sp.record(to_=user3.address, token_id=0, amount=3)])
         ]).run(valid=False, sender=user2)
-
-    # Check that the owner can transfer the token
-    scenario += fa2.transfer([
-        sp.record(
-            from_=user1.address,
-            txs=[sp.record(to_=user3.address, token_id=token_id, amount=3)])
-        ]).run(sender=user1)
-
-    # Check that the contract information has been updated
-    scenario.verify(fa2.data.ledger[(user1.address, token_id)] == editions - 3)
-    scenario.verify(fa2.data.ledger[(user3.address, token_id)] == 3)
-    scenario.verify(fa2.data.total_supply[token_id] == editions)
-    scenario.verify(fa2.total_supply(token_id) == editions)
 
     # Check that the admin cannot transfer the token
     scenario += fa2.transfer([
         sp.record(
             from_=user1.address,
-            txs=[sp.record(to_=user2.address, token_id=token_id, amount=3)])
+            txs=[sp.record(to_=user2.address, token_id=0, amount=3)])
         ]).run(valid=False, sender=admin)
+
+    # Check that the owner can transfer the token
+    scenario += fa2.transfer([
+        sp.record(
+            from_=user1.address,
+            txs=[sp.record(to_=user3.address, token_id=0, amount=3)])
+        ]).run(sender=user1)
+
+    # Check that the contract information has been updated
+    scenario.verify(fa2.data.ledger[(user1.address, 0)] == editions - 3)
+    scenario.verify(fa2.data.ledger[(user3.address, 0)] == 3)
+    scenario.verify(fa2.data.total_supply[0] == editions)
+    scenario.verify(fa2.total_supply(0) == editions)
 
     # Check that the owner cannot transfer more tokens than the ones they have
     scenario += fa2.transfer([
         sp.record(
             from_=user1.address,
-            txs=[sp.record(to_=user2.address, token_id=token_id, amount=30)])
+            txs=[sp.record(to_=user2.address, token_id=0, amount=30)])
         ]).run(valid=False, sender=user1)
 
     # Check that an owner cannot transfer other owners editions
     scenario += fa2.transfer([
         sp.record(
             from_=user1.address,
-            txs=[sp.record(to_=user3.address, token_id=token_id, amount=1)])
+            txs=[sp.record(to_=user3.address, token_id=0, amount=1)])
         ]).run(valid=False, sender=user2)
 
-    # Check that the owner can transfer their own editions
+    # Check that the new owner can transfer their own editions
     scenario += fa2.transfer([
         sp.record(
             from_=user3.address,
-            txs=[sp.record(to_=user2.address, token_id=token_id, amount=1)])
+            txs=[sp.record(to_=user2.address, token_id=0, amount=1)])
         ]).run(sender=user3)
 
     # Check that the contract information has been updated
-    scenario.verify(fa2.data.ledger[(user1.address, token_id)] == editions - 3)
-    scenario.verify(fa2.data.ledger[(user2.address, token_id)] == 1)
-    scenario.verify(fa2.data.ledger[(user3.address, token_id)] == 3 - 1)
-    scenario.verify(fa2.data.total_supply[token_id] == editions)
-    scenario.verify(fa2.total_supply(token_id) == editions)
+    scenario.verify(fa2.data.ledger[(user1.address, 0)] == editions - 3)
+    scenario.verify(fa2.data.ledger[(user2.address, 0)] == 1)
+    scenario.verify(fa2.data.ledger[(user3.address, 0)] == 3 - 1)
+    scenario.verify(fa2.data.total_supply[0] == editions)
+    scenario.verify(fa2.total_supply(0) == editions)
 
     # Make the second user as operator of the first user token
     scenario += fa2.update_operators([sp.variant("add_operator", sp.record(
         owner=user1.address,
         operator=user2.address,
-        token_id=token_id))]).run(sender=user1)
+        token_id=0))]).run(sender=user1)
 
     # Check that the second user now can transfer the user1 editions
     scenario += fa2.transfer([
         sp.record(
             from_=user1.address,
-            txs=[sp.record(to_=user3.address, token_id=token_id, amount=5)])
+            txs=[sp.record(to_=user3.address, token_id=0, amount=5)])
         ]).run(sender=user2)
 
     # Check that the contract information has been updated
-    scenario.verify(fa2.data.ledger[(user1.address, token_id)] == editions - 3 - 5)
-    scenario.verify(fa2.data.ledger[(user2.address, token_id)] == 1)
-    scenario.verify(fa2.data.ledger[(user3.address, token_id)] == 3 - 1 + 5)
-    scenario.verify(fa2.data.total_supply[token_id] == editions)
-    scenario.verify(fa2.total_supply(token_id) == editions)
+    scenario.verify(fa2.data.ledger[(user1.address, 0)] == editions - 3 - 5)
+    scenario.verify(fa2.data.ledger[(user2.address, 0)] == 1)
+    scenario.verify(fa2.data.ledger[(user3.address, 0)] == 3 - 1 + 5)
+    scenario.verify(fa2.data.total_supply[0] == editions)
+    scenario.verify(fa2.total_supply(0) == editions)
 
 
 @sp.add_test(name="Test complex transfer")
@@ -315,15 +301,17 @@ def test_complex_transfer():
 
     # Mint two tokens
     scenario += fa2.mint(
-        address=user1.address,
         amount=10,
         metadata={"": sp.pack("ipfs://aaa")},
-        token_id=0).run(sender=admin)
+        minter=sp.record(address=user1.address, royalties=0),
+        creators=[sp.record(address=user1.address, royalties=100)],
+        donations=[]).run(sender=admin)
     scenario += fa2.mint(
-        address=user2.address,
         amount=20,
         metadata={"": sp.pack("ipfs://bbb")},
-        token_id=1).run(sender=admin)
+        minter=sp.record(address=user2.address, royalties=0),
+        creators=[sp.record(address=user2.address, royalties=100)],
+        donations=[]).run(sender=admin)
 
     # Check that the contract information has been updated
     scenario.verify(fa2.data.ledger[(user1.address, 0)] == 10)
@@ -431,30 +419,27 @@ def test_balance_of():
 
     # Mint two tokens
     scenario += fa2.mint(
-        address=user1.address,
         amount=10,
         metadata={"": sp.pack("ipfs://aaa")},
-        token_id=0).run(sender=admin)
+        minter=sp.record(address=user1.address, royalties=0),
+        creators=[sp.record(address=user1.address, royalties=100)],
+        donations=[]).run(sender=admin)
     scenario += fa2.mint(
-        address=user2.address,
         amount=20,
         metadata={"": sp.pack("ipfs://bbb")},
-        token_id=1).run(sender=admin)
-    scenario += fa2.mint(
-        address=user3.address,
-        amount=5,
-        metadata={"": sp.pack("ipfs://ccc")},
-        token_id=1).run(sender=admin)
+        minter=sp.record(address=user2.address, royalties=0),
+        creators=[sp.record(address=user2.address, royalties=100)],
+        donations=[]).run(sender=admin)
 
     # Check the balances using the off-chain view
     scenario.verify(fa2.get_balance(sp.record(owner=user1.address, token_id=0)) == 10)
     scenario.verify(fa2.get_balance(sp.record(owner=user2.address, token_id=1)) == 20)
-    scenario.verify(fa2.get_balance(sp.record(owner=user3.address, token_id=1)) == 5)
 
     # Check that it fails if there is not row for that information in the ledger
     scenario.verify(sp.is_failing(fa2.get_balance(sp.record(owner=user2.address, token_id=0))))
     scenario.verify(sp.is_failing(fa2.get_balance(sp.record(owner=user3.address, token_id=0))))
     scenario.verify(sp.is_failing(fa2.get_balance(sp.record(owner=user1.address, token_id=1))))
+    scenario.verify(sp.is_failing(fa2.get_balance(sp.record(owner=user3.address, token_id=1))))
     scenario.verify(sp.is_failing(fa2.get_balance(sp.record(owner=user1.address, token_id=10))))
 
     # Check that asking for the token balances fails if the token doesn't exist
@@ -479,7 +464,7 @@ def test_balance_of():
     scenario.verify(dummyContract.data.balances[(user3.address, 0)] == 0)
     scenario.verify(dummyContract.data.balances[(user1.address, 1)] == 0)
     scenario.verify(dummyContract.data.balances[(user2.address, 1)] == 20)
-    scenario.verify(dummyContract.data.balances[(user3.address, 1)] == 5)
+    scenario.verify(dummyContract.data.balances[(user3.address, 1)] == 0)
 
 
 @sp.add_test(name="Test update operators")
@@ -495,17 +480,19 @@ def test_update_operators():
 
     # Mint two tokens
     scenario += fa2.mint(
-        address=user1.address,
         amount=10,
         metadata={"": sp.pack("ipfs://aaa")},
-        token_id=0).run(sender=admin)
+        minter=sp.record(address=user1.address, royalties=0),
+        creators=[sp.record(address=user1.address, royalties=100)],
+        donations=[]).run(sender=admin)
     scenario += fa2.mint(
-        address=user2.address,
         amount=20,
         metadata={"": sp.pack("ipfs://bbb")},
-        token_id=1).run(sender=admin)
+        minter=sp.record(address=user2.address, royalties=0),
+        creators=[sp.record(address=user2.address, royalties=100)],
+        donations=[]).run(sender=admin)
 
-    # Check that the operators informaion is empty
+    # Check that the operators information is empty
     scenario.verify(~fa2.is_operator(
         sp.record(owner=user1.address, operator=user2.address, token_id=0)))
     scenario.verify(~fa2.is_operator(
@@ -607,7 +594,7 @@ def test_update_operators():
             operator=user2.address,
             token_id=0))]).run(valid=False, sender=user2)
 
-    # Check that the admin cannot remove operators at will
+    # Check that the admin cannot remove operators
     scenario += fa2.update_operators([
         sp.variant("remove_operator", sp.record(
             owner=user1.address,
