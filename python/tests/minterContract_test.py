@@ -57,7 +57,6 @@ def test_single_creator_mint():
     # Get the test environment
     testEnvironment = get_test_environment()
     scenario = testEnvironment["scenario"]
-    admin = testEnvironment["admin"]
     user1 = testEnvironment["user1"]
     user2 = testEnvironment["user2"]
     ngo1 = testEnvironment["ngo1"]
