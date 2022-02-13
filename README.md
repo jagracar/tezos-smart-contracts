@@ -27,6 +27,7 @@ cd ~/github/tezos-smart-contracts
 ~/admin/smartpy/SmartPy.sh test python/tests/lambdaFunctionUtilContract_test.py output/tests/lambdaFunctionUtilsContract --html --purge
 ~/admin/smartpy/SmartPy.sh test python/tests/fa2Contract_test.py output/tests/fa2Contract --html --purge
 ~/admin/smartpy/SmartPy.sh test python/tests/extendedFa2Contract_test.py output/tests/extendedFa2Contract --html --purge
+~/admin/smartpy/SmartPy.sh test python/tests/minterContract_test.py output/tests/minterContract --html --purge
 ```
 
 ## Compile the contracts
@@ -43,4 +44,5 @@ cd ~/github/tezos-smart-contracts
 ~/admin/smartpy/SmartPy.sh compile python/contracts/lambdaFunctionUtilContract.py output/contracts/lambdaFunctionUtilContract --html --purge
 ~/admin/smartpy/SmartPy.sh compile python/contracts/fa2Contract.py output/contracts/fa2Contract --html --purge
 ~/admin/smartpy/SmartPy.sh compile python/contracts/extendedFa2Contract.py output/contracts/extendedFa2Contract --html --purge
+~/admin/smartpy/SmartPy.sh compile python/contracts/minterContract.py output/contracts/minterContract --html --purge
 ```

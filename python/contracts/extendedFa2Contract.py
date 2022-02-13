@@ -330,7 +330,7 @@ class FA2(sp.Contract):
         # Update the contract metadata
         self.data.metadata[params.k] = params.v
 
-    @sp.offchain_view(pure=True)
+    @sp.onchain_view(pure=True)
     def get_balance(self, params):
         """Returns the owner token balance.
 
@@ -346,7 +346,7 @@ class FA2(sp.Contract):
         # Return the owner token balance
         sp.result(self.data.ledger[(params.owner, params.token_id)])
 
-    @sp.offchain_view(pure=True)
+    @sp.onchain_view(pure=True)
     def does_token_exist(self, token_id):
         """Checks if the token exists.
 
@@ -357,21 +357,21 @@ class FA2(sp.Contract):
         # Return true if the token exists
         sp.result(token_id < self.data.counter)
 
-    @sp.offchain_view(pure=True)
+    @sp.onchain_view(pure=True)
     def count_tokens(self):
         """Returns how many tokens are in this FA2 contract.
 
         """
         sp.result(self.data.counter)
 
-    @sp.offchain_view(pure=True)
+    @sp.onchain_view(pure=True)
     def all_tokens(self):
         """Returns a list with all the token ids.
 
         """
         sp.result(sp.range(0, self.data.counter))
 
-    @sp.offchain_view(pure=True)
+    @sp.onchain_view(pure=True)
     def total_supply(self, token_id):
         """Returns the total supply for a given token id.
 
@@ -382,7 +382,7 @@ class FA2(sp.Contract):
         # Return the token total supply
         sp.result(self.data.total_supply[token_id])
 
-    @sp.offchain_view(pure=True)
+    @sp.onchain_view(pure=True)
     def is_operator(self, params):
         """Checks if a given token operator exists.
 
@@ -392,6 +392,17 @@ class FA2(sp.Contract):
 
         # Return true if the token operator exists
         sp.result(self.data.operators.contains(params))
+
+    @sp.onchain_view(pure=True)
+    def get_mint_parameters(self, token_id):
+        """Returns the token mint parameters.
+
+        """
+        # Define the input parameter data type
+        sp.set_type(token_id, sp.TNat)
+
+        # Return the token mint parameters
+        sp.result(self.data.mint_parameters[token_id])
 
 
 sp.add_compilation_target("ExtendedFA2", FA2(
