@@ -26,21 +26,19 @@ class FA2(sp.Contract):
         token_info=sp.TMap(sp.TString, sp.TBytes)).layout(
             ("token_id", "token_info"))
 
-    USER_TYPE = sp.TRecord(
+    USER_ROYALTIES_TYPE = sp.TRecord(
         # The user address
         address=sp.TAddress,
         # The user royalties in per mille (100 is 10%)
         royalties=sp.TNat).layout(
             ("address", "royalties"))
 
-    MINT_PARAMETERS_VALUE_TYPE = sp.TRecord(
+    TOKEN_ROYALTIES_VALUE_TYPE = sp.TRecord(
         # The token original minter
-        minter=USER_TYPE,
-        # The token creators
-        creators=sp.TList(USER_TYPE),
-        # The token donations
-        donations=sp.TList(USER_TYPE)).layout(
-            ("minter", ("creators", "donations")))
+        minter=USER_ROYALTIES_TYPE,
+        # The token creator (it could be a single creator or a collaboration)
+        creator=USER_ROYALTIES_TYPE).layout(
+            ("minter", "creator"))
 
     OPERATOR_KEY_TYPE = sp.TRecord(
         # The owner of the token editions
@@ -65,12 +63,16 @@ class FA2(sp.Contract):
             ledger=sp.TBigMap(FA2.LEDGER_KEY_TYPE, sp.TNat),
             # The tokens total supply
             total_supply=sp.TBigMap(sp.TNat, sp.TNat),
-            # The tokens metadata big map
+            # The big map with the tokens metadata
             token_metadata=sp.TBigMap(sp.TNat, FA2.TOKEN_METADATA_VALUE_TYPE),
-            # The token mint parameters (minter, creators, royalties)
-            mint_parameters=sp.TBigMap(sp.TNat, FA2.MINT_PARAMETERS_VALUE_TYPE),
-            # The tokens operators big map
+            # The big map with the tokens data (source code, description, etc)
+            token_data=sp.TBigMap(sp.TNat, sp.TMap(sp.TString, sp.TBytes)),
+            # The big map with the tokens royalties for the minter and creators
+            token_royalties=sp.TBigMap(sp.TNat, FA2.TOKEN_ROYALTIES_VALUE_TYPE),
+            # The big map with the tokens operators
             operators=sp.TBigMap(FA2.OPERATOR_KEY_TYPE, sp.TUnit),
+            # The proposed new administrator address
+            proposed_administrator=sp.TOption(sp.TAddress),
             # A counter that tracks the total number of tokens minted so far
             counter=sp.TNat))
 
@@ -81,8 +83,10 @@ class FA2(sp.Contract):
             ledger=sp.big_map(),
             total_supply=sp.big_map(),
             token_metadata=sp.big_map(),
-            mint_parameters=sp.big_map(),
+            token_data=sp.big_map(),
+            token_royalties=sp.big_map(),
             operators=sp.big_map(),
+            proposed_administrator=sp.none,
             counter=0)
 
         # Adds some flags and optimization levels
@@ -109,7 +113,10 @@ class FA2(sp.Contract):
                 self.count_tokens,
                 self.all_tokens,
                 self.total_supply,
-                self.is_operator],
+                self.is_operator,
+                self.get_token_metadata,
+                self.get_token_data,
+                self.get_token_royalties],
             "permissions": {
                 "operator": "owner-or-operator-transfer",
                 "receiver": "owner-no-hook",
@@ -163,33 +170,33 @@ class FA2(sp.Contract):
         """
         # Define the input parameter data type
         sp.set_type(params, sp.TRecord(
-            amount=sp.TNat,
+            editions=sp.TNat,
             metadata=sp.TMap(sp.TString, sp.TBytes),
-            minter=FA2.USER_TYPE,
-            creators=sp.TList(FA2.USER_TYPE),
-            donations=sp.TList(FA2.USER_TYPE)).layout(
-                ("amount", ("metadata", ("minter", ("creators", "donations"))))))
+            data=sp.TMap(sp.TString, sp.TBytes),
+            royalties=FA2.TOKEN_ROYALTIES_VALUE_TYPE).layout(
+                ("editions", ("metadata", ("data", "royalties")))))
 
         # Check that the administrator executed the entry point
         self.check_is_administrator()
 
         # Check that the number of editions is not zero
-        sp.verify(params.amount != 0, message="FA2_ZERO_EDITIONS")
+        sp.verify(params.editions != 0, message="FA2_ZERO_EDITIONS")
 
-        # Check that there is at least one creator
-        sp.verify(sp.len(params.creators) > 0, message="FA2_NO_CREATORS")
+        # Check that the total royalties do not exceed 100%
+        sp.verify(params.royalties.minter.royalties + 
+                  params.royalties.creator.royalties <= 1000,
+                  message="FA2_INVALID_ROYALTIES")
 
         # Update the big maps
         token_id = self.data.counter
-        self.data.ledger[(params.minter.address, token_id)] = params.amount
-        self.data.total_supply[token_id] = params.amount
+        self.data.ledger[
+            (params.royalties.minter.address, token_id)] = params.editions
+        self.data.total_supply[token_id] = params.editions
         self.data.token_metadata[token_id] = sp.record(
             token_id=token_id,
             token_info=params.metadata)
-        self.data.mint_parameters[token_id] = sp.record(
-            minter=params.minter,
-            creators=params.creators,
-            donations=params.donations)
+        self.data.token_data[token_id] = params.data
+        self.data.token_royalties[token_id] = params.royalties
 
         # Increase the tokens counter
         self.data.counter += 1
@@ -205,7 +212,8 @@ class FA2(sp.Contract):
             txs=sp.TList(sp.TRecord(
                 to_=sp.TAddress,
                 token_id=sp.TNat,
-                amount=sp.TNat).layout(("to_", ("token_id", "amount"))))).layout(
+                amount=sp.TNat).layout(
+                    ("to_", ("token_id", "amount"))))).layout(
                         ("from_", "txs"))))
 
         # Loop over the list of transfers
@@ -220,7 +228,8 @@ class FA2(sp.Contract):
                 # Only do something if the token amount is larger than zero
                 with sp.if_(tx.amount > 0):
                     # Check that the owner has enough editions of the token
-                    self.check_sufficient_balance(transfer.from_, tx.token_id, tx.amount)
+                    self.check_sufficient_balance(
+                        transfer.from_, tx.token_id, tx.amount)
 
                     # Remove the token amount from the owner
                     owner_key = sp.pair(transfer.from_, tx.token_id)
@@ -301,18 +310,38 @@ class FA2(sp.Contract):
                     del self.data.operators[operator_key]
 
     @sp.entry_point
-    def set_administrator(self, administrator):
-        """Sets a new contract administrator.
+    def transfer_administrator(self, proposed_administrator):
+        """Proposes to transfer the contract administrator to another address.
 
         """
         # Define the input parameter data type
-        sp.set_type(administrator, sp.TAddress)
+        sp.set_type(proposed_administrator, sp.TAddress)
 
         # Check that the administrator executed the entry point
         self.check_is_administrator()
 
-        # Set the new administrator
-        self.data.administrator = administrator
+        # Set the new proposed administrator address
+        self.data.proposed_administrator = sp.some(proposed_administrator)
+
+    @sp.entry_point
+    def accept_administrator(self):
+        """The proposed administrator accepts the contract administrator
+        responsabilities.
+
+        """
+        # Check that there is a proposed administrator
+        sp.verify(self.data.proposed_administrator.is_some(),
+                  message="FA_NO_NEW_ADMIN")
+
+        # Check that the proposed administrator executed the entry point
+        sp.verify(sp.sender == self.data.proposed_administrator.open_some(),
+                  message="FA_NOT_PROPOSED_ADMIN")
+
+        # Set the new administrator address
+        self.data.administrator = sp.sender
+
+        # Reset the proposed administrator value
+        self.data.proposed_administrator = sp.none
 
     @sp.entry_point
     def set_metadata(self, params):
@@ -394,15 +423,37 @@ class FA2(sp.Contract):
         sp.result(self.data.operators.contains(params))
 
     @sp.onchain_view(pure=True)
-    def get_mint_parameters(self, token_id):
-        """Returns the token mint parameters.
+    def get_token_metadata(self, token_id):
+        """Returns the token metadata.
 
         """
         # Define the input parameter data type
         sp.set_type(token_id, sp.TNat)
 
-        # Return the token mint parameters
-        sp.result(self.data.mint_parameters[token_id])
+        # Return the token metadata
+        sp.result(self.data.token_metadata[token_id].token_info)
+
+    @sp.onchain_view(pure=True)
+    def get_token_data(self, token_id):
+        """Returns the token on-chain data.
+
+        """
+        # Define the input parameter data type
+        sp.set_type(token_id, sp.TNat)
+
+        # Return the token on-chain data
+        sp.result(self.data.token_data[token_id])
+
+    @sp.onchain_view(pure=True)
+    def get_token_royalties(self, token_id):
+        """Returns the token royalties information.
+
+        """
+        # Define the input parameter data type
+        sp.set_type(token_id, sp.TNat)
+
+        # Return the token royalties information
+        sp.result(self.data.token_royalties[token_id])
 
 
 sp.add_compilation_target("ExtendedFA2", FA2(
