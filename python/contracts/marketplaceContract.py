@@ -14,6 +14,13 @@ class MarketplaceContract(sp.Contract):
         royalties=sp.TNat).layout(
             ("address", "royalties"))
 
+    ORG_DONATION_TYPE = sp.TRecord(
+        # The organization address to donate to
+        address=sp.TAddress,
+        # The donation in per mille (100 is 10%)
+        donation=sp.TNat).layout(
+            ("address", "donation"))
+
     SWAP_TYPE = sp.TRecord(
         # The user that created the swap
         issuer=sp.TAddress,
@@ -22,8 +29,10 @@ class MarketplaceContract(sp.Contract):
         # The number of swapped editions
         editions=sp.TNat,
         # The edition price in mutez
-        mutez_price=sp.TMutez).layout(
-            ("issuer", ("token_id", ("editions", "mutez_price"))))
+        price=sp.TMutez,
+        # The list of donations to different organizations
+        donations=sp.TList(ORG_DONATION_TYPE)).layout(
+            ("issuer", ("token_id", ("editions", ("price", "donations")))))
 
     def __init__(self, administrator, metadata, fa2, fee):
         """Initializes the contract.
@@ -92,8 +101,9 @@ class MarketplaceContract(sp.Contract):
         sp.set_type(params, sp.TRecord(
             token_id=sp.TNat,
             editions=sp.TNat,
-            mutez_price=sp.TMutez).layout(
-                ("token_id", ("editions", "mutez_price"))))
+            price=sp.TMutez,
+            donations=sp.TList(MarketplaceContract.ORG_DONATION_TYPE)).layout(
+                ("token_id", ("editions", ("price", "donations")))))
 
         # Check that swaps are not paused
         sp.verify(~self.data.swaps_paused, message="MP_SWAPS_PAUSED")
@@ -103,6 +113,23 @@ class MarketplaceContract(sp.Contract):
 
         # Check that at least one edition will be swapped
         sp.verify(params.editions > 0, message="MP_NO_SWAPPED_EDITIONS")
+
+        # Check that the number of donations is not too large
+        donations = sp.local("donations", params.donations)
+        sp.verify(sp.len(donations.value) <= 5, message="MP_TOO_MANY_DONATIONS")
+
+        # Check that royalties + donations + fee does not exceed 100%
+        royalties = sp.local("royalties",
+                             self.get_token_royalties(params.token_id))
+        total = sp.local("total",
+                         self.data.fee + 
+                         royalties.value.minter.royalties + 
+                         royalties.value.creator.royalties)
+
+        with sp.for_("org_donation", donations.value) as org_donation:
+            total.value += org_donation.donation
+
+        sp.verify(total.value <= 1000, message="MP_TOO_HIGH_DONATIONS")
 
         # Transfer all the editions to the marketplace account
         self.fa2_transfer(
@@ -117,7 +144,8 @@ class MarketplaceContract(sp.Contract):
             issuer=sp.sender,
             token_id=params.token_id,
             editions=params.editions,
-            mutez_price=params.mutez_price)
+            price=params.price,
+            donations=donations.value)
 
         # Increase the swaps counter
         self.data.counter += 1
@@ -140,30 +168,22 @@ class MarketplaceContract(sp.Contract):
         swap = sp.local("swap", self.data.swaps[swap_id])
         sp.verify(sp.sender != swap.value.issuer, message="MP_IS_SWAP_ISSUER")
 
-        # Check that the provided tez amount is exactly the edition price
-        sp.verify(sp.amount == swap.value.mutez_price,
-                  message="MP_WRONG_TEZ_AMOUNT")
-
         # Check that there is at least one edition available to collect
         sp.verify(swap.value.editions > 0, message="MP_SWAP_COLLECTED")
 
+        # Check that the provided mutez amount is exactly the edition price
+        sp.verify(sp.amount == swap.value.price, message="MP_WRONG_TEZ_AMOUNT")
+
         # Handle tez tranfers if the edition price is not zero
-        with sp.if_(swap.value.mutez_price != sp.mutez(0)):
+        with sp.if_(sp.amount != sp.mutez(0)):
             # Get the royalties information from the FA2 token contract
-            royalties = sp.local("royalties", sp.view(
-                name="get_token_royalties",
-                address=self.data.fa2,
-                param=swap.value.token_id,
-                t=sp.TRecord(
-                    minter=MarketplaceContract.USER_ROYALTIES_TYPE,
-                    creator=MarketplaceContract.USER_ROYALTIES_TYPE).layout(
-                        ("minter", "creator"))
-                ).open_some())
+            royalties = sp.local(
+                "royalties", self.get_token_royalties(swap.value.token_id))
 
             # Send the royalties to the token minter
             minter_royalties_amount = sp.local(
                 "minter_royalties_amount", sp.split_tokens(
-                    swap.value.mutez_price, royalties.value.minter.royalties, 1000))
+                    sp.amount, royalties.value.minter.royalties, 1000))
 
             with sp.if_(minter_royalties_amount.value > sp.mutez(0)):
                 sp.send(royalties.value.minter.address,
@@ -172,7 +192,7 @@ class MarketplaceContract(sp.Contract):
             # Send the royalties to the token creator
             creator_royalties_amount = sp.local(
                 "creator_royalties_amount", sp.split_tokens(
-                    swap.value.mutez_price, royalties.value.creator.royalties, 1000))
+                    sp.amount, royalties.value.creator.royalties, 1000))
 
             with sp.if_(creator_royalties_amount.value > sp.mutez(0)):
                 sp.send(royalties.value.creator.address,
@@ -180,16 +200,31 @@ class MarketplaceContract(sp.Contract):
 
             # Send the management fees
             fee_amount = sp.local(
-                "fee_amount", sp.split_tokens(
-                    swap.value.mutez_price, self.data.fee, 1000))
+                "fee_amount", sp.split_tokens(sp.amount, self.data.fee, 1000))
 
             with sp.if_(fee_amount.value > sp.mutez(0)):
                 sp.send(self.data.fee_recipient, fee_amount.value)
 
+            # Send the donations
+            donation_amount = sp.local("donation_amount", sp.mutez(0))
+            total_donations_amount = sp.local(
+                "total_donations_amount", sp.mutez(0))
+
+            with sp.for_("org_donation", swap.value.donations) as org_donation:
+                donation_amount.value = sp.split_tokens(
+                    sp.amount, org_donation.donation, 1000)
+
+                with sp.if_(donation_amount.value > sp.mutez(0)):
+                    sp.send(org_donation.address, donation_amount.value)
+                    total_donations_amount.value += donation_amount.value
+
             # Send what is left to the swap issuer
             sp.send(swap.value.issuer,
-                    sp.amount - minter_royalties_amount.value - 
-                    creator_royalties_amount.value - fee_amount.value)
+                    sp.amount - 
+                    minter_royalties_amount.value - 
+                    creator_royalties_amount.value - 
+                    fee_amount.value - 
+                    total_donations_amount.value)
 
         # Transfer the token edition to the collector
         self.fa2_transfer(
@@ -423,6 +458,21 @@ class MarketplaceContract(sp.Contract):
                     amount=token_amount)]))]),
             amount=sp.mutez(0),
             destination=c)
+
+    def get_token_royalties(self, token_id):
+        """Gets the token royalties information calling the FA2 contract
+        on-chain view.
+
+        """
+        return sp.view(
+            name="get_token_royalties",
+            address=self.data.fa2,
+            param=token_id,
+            t=sp.TRecord(
+                minter=MarketplaceContract.USER_ROYALTIES_TYPE,
+                creator=MarketplaceContract.USER_ROYALTIES_TYPE).layout(
+                        ("minter", "creator"))
+            ).open_some()
 
 
 sp.add_compilation_target("marketplace", MarketplaceContract(

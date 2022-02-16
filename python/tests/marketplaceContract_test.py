@@ -46,9 +46,13 @@ def get_test_environment():
     collector1 = sp.test_account("collector1")
     collector2 = sp.test_account("collector2")
 
-    # Artists contracts that will receive the royalties
+    # Initialize the artists contracts that will receive the royalties
     artist1 = RecipientContract()
     artist2 = RecipientContract()
+
+    # Initialize the organization contracts that will receive the donations
+    org1 = RecipientContract()
+    org2 = RecipientContract()
 
     # Initialize extended FA2, minter and marketplace contracts
     fa2 = extendedFa2Contract.FA2(
@@ -71,6 +75,8 @@ def get_test_environment():
     scenario = sp.test_scenario()
     scenario += artist1
     scenario += artist2
+    scenario += org1
+    scenario += org2
     scenario += fa2
     scenario += minter
     scenario += marketplace
@@ -81,8 +87,7 @@ def get_test_environment():
     scenario += minter.accept_fa2_administrator().run(sender=admin)
 
     # Change the marketplace fee recipient
-    scenario += marketplace.update_fee_recipient(fee_recipient.address).run(
-        sender=admin)
+    scenario += marketplace.update_fee_recipient(fee_recipient.address).run(sender=admin)
 
     # Save all the variables in a test environment dictionary
     testEnvironment = {
@@ -92,6 +97,8 @@ def get_test_environment():
         "artist2": artist2,
         "collector1": collector1,
         "collector2": collector2,
+        "org1": org1,
+        "org2": org2,
         "fa2": fa2,
         "minter": minter,
         "marketplace": marketplace,
@@ -109,6 +116,8 @@ def test_swap_and_collect():
     artist2 = testEnvironment["artist2"]
     collector1 = testEnvironment["collector1"]
     collector2 = testEnvironment["collector2"]
+    org1 = testEnvironment["org1"]
+    org2 = testEnvironment["org2"]
     fa2 = testEnvironment["fa2"]
     minter = testEnvironment["minter"]
     marketplace = testEnvironment["marketplace"]
@@ -138,7 +147,7 @@ def test_swap_and_collect():
         operator=marketplace.address,
         token_id=token_id))]).run(sender=artist1.address)
 
-    # Check that there are no swaps before
+    # Check that there are no swaps in the marketplace
     scenario.verify(~marketplace.data.swaps.contains(0))
     scenario.verify(~marketplace.has_swap(0))
     scenario.verify(marketplace.data.counter == 0)
@@ -146,17 +155,21 @@ def test_swap_and_collect():
 
     # Check that tez transfers are not allowed when swapping
     swapped_editions = 40
-    mutez_price = sp.mutez(1000000)
+    price = sp.mutez(1000000)
+    donations = [sp.record(address=org1.address, donation=100),
+                 sp.record(address=org2.address, donation=300)]
     scenario += marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
-        mutez_price=mutez_price).run(valid=False, sender=artist1.address, amount=sp.tez(3))
+        price=price,
+        donations=donations).run(valid=False, sender=artist1.address, amount=sp.tez(3))
 
     # Swap the token on the marketplace contract
     scenario += marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
-        mutez_price=mutez_price).run(sender=artist1.address)
+        price=price,
+        donations=donations).run(sender=artist1.address)
 
     # Check that the token ledger information is correct
     scenario.verify(fa2.data.ledger[(artist1.address, token_id)] == editions - swapped_editions)
@@ -168,7 +181,8 @@ def test_swap_and_collect():
     scenario.verify(marketplace.data.swaps[0].issuer == artist1.address)
     scenario.verify(marketplace.data.swaps[0].token_id == token_id)
     scenario.verify(marketplace.data.swaps[0].editions == swapped_editions)
-    scenario.verify(marketplace.data.swaps[0].mutez_price == mutez_price)
+    scenario.verify(marketplace.data.swaps[0].price == price)
+    scenario.verify(sp.len(marketplace.data.swaps[0].donations) == 2)
     scenario.verify(marketplace.data.counter == 1)
 
     # Check that the on-chain views work
@@ -176,27 +190,32 @@ def test_swap_and_collect():
     scenario.verify(marketplace.get_swap(0).issuer == artist1.address)
     scenario.verify(marketplace.get_swap(0).token_id == token_id)
     scenario.verify(marketplace.get_swap(0).editions == swapped_editions)
-    scenario.verify(marketplace.get_swap(0).mutez_price == mutez_price)
+    scenario.verify(marketplace.get_swap(0).price == price)
+    scenario.verify(sp.len(marketplace.get_swap(0).donations) == 2)
     scenario.verify(marketplace.get_swaps_counter() == 1)
 
     # Check that collecting fails if the collector is the swap issuer
-    scenario += marketplace.collect(0).run(valid=False, sender=artist1.address, amount=mutez_price)
+    scenario += marketplace.collect(0).run(valid=False, sender=artist1.address, amount=price)
 
     # Check that collecting fails if the exact tez amount is not provided
-    scenario += marketplace.collect(0).run(valid=False, sender=collector1, amount=(mutez_price - sp.mutez(1)))
-    scenario += marketplace.collect(0).run(valid=False, sender=collector1, amount=(mutez_price + sp.mutez(1)))
+    scenario += marketplace.collect(0).run(valid=False, sender=collector1, amount=(price - sp.mutez(1)))
+    scenario += marketplace.collect(0).run(valid=False, sender=collector1, amount=(price + sp.mutez(1)))
 
     # Collect the token with two different collectors
-    scenario += marketplace.collect(0).run(sender=collector1, amount=mutez_price)
-    scenario += marketplace.collect(0).run(sender=collector2, amount=mutez_price)
+    scenario += marketplace.collect(0).run(sender=collector1, amount=price)
+    scenario += marketplace.collect(0).run(sender=collector2, amount=price)
 
     # Check that all the tez have been sent and the swaps big map has been updated
     scenario.verify(marketplace.balance == sp.mutez(0))
-    scenario.verify(fee_recipient.balance == sp.mul(2, sp.split_tokens(mutez_price, 25, 1000)))
-    scenario.verify(artist2.balance == sp.mul(2, sp.split_tokens(mutez_price, royalties, 1000)))
-    scenario.verify(artist1.balance == sp.mul(2, mutez_price - 
-                                              sp.split_tokens(mutez_price, 25, 1000) - 
-                                              sp.split_tokens(mutez_price, royalties, 1000)))
+    scenario.verify(fee_recipient.balance == sp.mul(2, sp.split_tokens(price, 25, 1000)))
+    scenario.verify(org1.balance == sp.mul(2, sp.split_tokens(price, 100, 1000)))
+    scenario.verify(org2.balance == sp.mul(2, sp.split_tokens(price, 300, 1000)))
+    scenario.verify(artist2.balance == sp.mul(2, sp.split_tokens(price, royalties, 1000)))
+    scenario.verify(artist1.balance == sp.mul(2, price - 
+                                              sp.split_tokens(price, 25, 1000) - 
+                                              sp.split_tokens(price, 100, 1000) - 
+                                              sp.split_tokens(price, 300, 1000) - 
+                                              sp.split_tokens(price, royalties, 1000)))
     scenario.verify(marketplace.data.swaps[0].editions == swapped_editions - 2)
     scenario.verify(marketplace.get_swap(0).editions == swapped_editions - 2)
 
@@ -235,6 +254,8 @@ def test_free_collect():
     scenario = testEnvironment["scenario"]
     artist1 = testEnvironment["artist1"]
     collector1 = testEnvironment["collector1"]
+    org1 = testEnvironment["org1"]
+    org2 = testEnvironment["org2"]
     fa2 = testEnvironment["fa2"]
     minter = testEnvironment["minter"]
     marketplace = testEnvironment["marketplace"]
@@ -258,18 +279,23 @@ def test_free_collect():
 
     # Swap the token in the marketplace contract for a price of 0 tez
     swapped_editions = 50
-    mutez_price = sp.mutez(0)
+    price = sp.mutez(0)
+    donations = [sp.record(address=org1.address, donation=100),
+                 sp.record(address=org2.address, donation=300)]
     scenario += marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
-        mutez_price=mutez_price).run(sender=artist1.address)
+        price=price,
+        donations=donations).run(sender=artist1.address)
 
     # Collect the token
-    scenario += marketplace.collect(0).run(sender=collector1, amount=mutez_price)
+    scenario += marketplace.collect(0).run(sender=collector1, amount=price)
 
     # Check that all the tez have been sent and the swaps big map has been updated
     scenario.verify(marketplace.balance == sp.mutez(0))
     scenario.verify(fee_recipient.balance == sp.mutez(0))
+    scenario.verify(org1.balance == sp.mutez(0))
+    scenario.verify(org2.balance == sp.mutez(0))
     scenario.verify(artist1.balance == sp.mutez(0))
     scenario.verify(marketplace.data.swaps[0].editions == swapped_editions - 1)
 
@@ -286,6 +312,8 @@ def test_very_cheap_collect():
     scenario = testEnvironment["scenario"]
     artist1 = testEnvironment["artist1"]
     collector1 = testEnvironment["collector1"]
+    org1 = testEnvironment["org1"]
+    org2 = testEnvironment["org2"]
     fa2 = testEnvironment["fa2"]
     minter = testEnvironment["minter"]
     marketplace = testEnvironment["marketplace"]
@@ -309,19 +337,24 @@ def test_very_cheap_collect():
 
     # Swap the token in the marketplace contract for a very cheap price
     swapped_editions = 50
-    mutez_price = sp.mutez(2)
+    price = sp.mutez(2)
+    donations = [sp.record(address=org1.address, donation=100),
+                 sp.record(address=org2.address, donation=300)]
     scenario += marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
-        mutez_price=mutez_price).run(sender=artist1.address)
+        price=price,
+        donations=donations).run(sender=artist1.address)
 
     # Collect the token
-    scenario += marketplace.collect(0).run(sender=collector1, amount=mutez_price)
+    scenario += marketplace.collect(0).run(sender=collector1, amount=price)
 
     # Check that all the tez have been sent and the swaps big map has been updated
     scenario.verify(marketplace.balance == sp.mutez(0))
     scenario.verify(fee_recipient.balance == sp.mutez(0))
-    scenario.verify(artist1.balance == mutez_price)
+    scenario.verify(org1.balance == sp.mutez(0))
+    scenario.verify(org2.balance == sp.mutez(0))
+    scenario.verify(artist1.balance == price)
     scenario.verify(marketplace.data.swaps[0].editions == swapped_editions - 1)
 
     # Check that the token ledger information is correct
@@ -460,14 +493,16 @@ def test_set_pause_swaps():
 
     # Swap one token in the marketplace contract
     swapped_editions = 10
-    mutez_price = sp.mutez(1000000)
+    price = sp.mutez(1000000)
+    donations = []
     scenario += marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
-        mutez_price=mutez_price).run(sender=artist1.address)
+        price=price,
+        donations=donations).run(sender=artist1.address)
 
     # Collect the token
-    scenario += marketplace.collect(0).run(sender=collector1, amount=mutez_price)
+    scenario += marketplace.collect(0).run(sender=collector1, amount=price)
 
     # Pause the swaps and make sure only the admin can do it
     scenario += marketplace.set_pause_swaps(True).run(valid=False, sender=collector1)
@@ -482,10 +517,11 @@ def test_set_pause_swaps():
     scenario += marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
-        mutez_price=mutez_price).run(valid=False, sender=artist1.address)
+        price=price,
+        donations=donations).run(valid=False, sender=artist1.address)
 
     # Check that collecting is still allowed
-    scenario += marketplace.collect(0).run(sender=collector1, amount=mutez_price)
+    scenario += marketplace.collect(0).run(sender=collector1, amount=price)
 
     # Check that cancel swaps are still allowed
     scenario += marketplace.cancel_swap(0).run(sender=artist1.address)
@@ -497,8 +533,9 @@ def test_set_pause_swaps():
     scenario += marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
-        mutez_price=mutez_price).run(sender=artist1.address)
-    scenario += marketplace.collect(1).run(sender=collector1, amount=mutez_price)
+        price=price,
+        donations=donations).run(sender=artist1.address)
+    scenario += marketplace.collect(1).run(sender=collector1, amount=price)
     scenario += marketplace.cancel_swap(1).run(sender=artist1.address)
 
 
@@ -532,14 +569,16 @@ def test_set_pause_collects():
 
     # Swap one token in the marketplace contract
     swapped_editions = 10
-    mutez_price = sp.mutez(1000000)
+    price = sp.mutez(1000000)
+    donations = []
     scenario += marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
-        mutez_price=mutez_price).run(sender=artist1.address)
+        price=price,
+        donations=donations).run(sender=artist1.address)
 
     # Collect the OBJKT
-    scenario += marketplace.collect(0).run(sender=collector1, amount=mutez_price)
+    scenario += marketplace.collect(0).run(sender=collector1, amount=price)
 
     # Pause the collects and make sure only the admin can do it
     scenario += marketplace.set_pause_collects(True).run(valid=False, sender=collector1)
@@ -551,13 +590,14 @@ def test_set_pause_collects():
     scenario.verify(marketplace.data.collects_paused)
 
     # Check that collecting is not allowed
-    scenario += marketplace.collect(0).run(valid=False, sender=collector1, amount=mutez_price)
+    scenario += marketplace.collect(0).run(valid=False, sender=collector1, amount=price)
 
     # Check that swapping is still allowed
     scenario += marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
-        mutez_price=mutez_price).run(sender=artist1.address)
+        price=price,
+        donations=donations).run(sender=artist1.address)
 
     # Check that cancel swaps are still allowed
     scenario += marketplace.cancel_swap(0).run(sender=artist1.address)
@@ -569,8 +609,9 @@ def test_set_pause_collects():
     scenario += marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
-        mutez_price=mutez_price).run(sender=artist1.address)
-    scenario += marketplace.collect(2).run(sender=collector1, amount=mutez_price)
+        price=price,
+        donations=donations).run(sender=artist1.address)
+    scenario += marketplace.collect(2).run(sender=collector1, amount=price)
     scenario += marketplace.cancel_swap(2).run(sender=artist1.address)
 
 
@@ -582,6 +623,8 @@ def test_swap_failure_conditions():
     admin = testEnvironment["admin"]
     artist1 = testEnvironment["artist1"]
     artist2 = testEnvironment["artist2"]
+    org1 = testEnvironment["org1"]
+    org2 = testEnvironment["org2"]
     fa2 = testEnvironment["fa2"]
     minter = testEnvironment["minter"]
     marketplace = testEnvironment["marketplace"]
@@ -603,30 +646,44 @@ def test_swap_failure_conditions():
         token_id=token_id))]).run(sender=artist1.address)
 
     # Trying to swap more editions than are available must fail
-    mutez_price = sp.mutez(1000000)
+    price = sp.mutez(1000000)
+    donations = []
     scenario += marketplace.swap(
         token_id=token_id,
         editions=editions + 1,
-        mutez_price=mutez_price).run(valid=False, sender=artist1.address)
+        price=price,
+        donations=donations).run(valid=False, sender=artist1.address)
 
     # Trying to swap a token for which one doesn't have any editions must fail,
     # even for the admin
     scenario += marketplace.swap(
         token_id=token_id,
         editions=editions,
-        mutez_price=mutez_price).run(valid=False, sender=admin)
+        price=price,
+        donations=donations).run(valid=False, sender=admin)
 
     # Cannot swap 0 items
     scenario += marketplace.swap(
         token_id=token_id,
         editions=0,
-        mutez_price=mutez_price).run(valid=False, sender=artist1.address)
+        price=price,
+        donations=donations).run(valid=False, sender=artist1.address)
+
+    # Trying to give too many donations must fail
+    too_many_donations = [sp.record(address=org1.address, donation=500),
+                          sp.record(address=org2.address, donation=501)]
+    scenario += marketplace.swap(
+        token_id=token_id,
+        editions=editions,
+        price=price,
+        donations=too_many_donations).run(valid=False, sender=artist1.address)
 
     # Successfully swap
     scenario += marketplace.swap(
         token_id=token_id,
         editions=editions,
-        mutez_price=mutez_price).run(sender=artist1.address)
+        price=price,
+        donations=donations).run(sender=artist1.address)
 
     # Check that the swap was added
     scenario.verify(marketplace.data.swaps.contains(0))
@@ -637,7 +694,8 @@ def test_swap_failure_conditions():
     scenario += marketplace.swap(
         token_id=token_id,
         editions=1,
-        mutez_price=mutez_price).run(valid=False, sender=artist1.address)
+        price=price,
+        donations=donations).run(valid=False, sender=artist1.address)
 
     # Mint a multi edition from a second OBJKT
     editions = 10
@@ -656,17 +714,19 @@ def test_swap_failure_conditions():
         token_id=token_id))]).run(sender=artist2.address)
 
     # Fail to swap second objkt as second artist when too many editions
-    mutez_price = sp.mutez(12000)
+    price = sp.mutez(12000)
     scenario += marketplace.swap(
         token_id=token_id,
         editions=editions + 10,
-        mutez_price=mutez_price).run(valid=False, sender=artist2.address)
+        price=price,
+        donations=donations).run(valid=False, sender=artist2.address)
 
     # Successfully swap the second objkt
     scenario += marketplace.swap(
         token_id=token_id,
         editions=editions,
-        mutez_price=mutez_price).run(sender=artist2.address)
+        price=price,
+        donations=donations).run(sender=artist2.address)
 
     # Check that the swap was added
     scenario.verify(marketplace.data.swaps.contains(0))
@@ -679,7 +739,8 @@ def test_swap_failure_conditions():
     scenario += marketplace.swap(
         token_id=token_id,
         editions=1,
-        mutez_price=mutez_price).run(valid=False, sender=artist2.address)
+        price=price,
+        donations=donations).run(valid=False, sender=artist2.address)
 
 
 @sp.add_test(name="Test cancel swap failure conditions")
@@ -711,11 +772,13 @@ def test_cancel_swap_failure_conditions():
         token_id=token_id))]).run(sender=artist1.address)
 
     # Successfully swap
-    mutez_price = sp.mutez(10000)
+    price = sp.mutez(10000)
+    donations = []
     scenario += marketplace.swap(
         token_id=token_id,
         editions=editions,
-        mutez_price=mutez_price).run(sender=artist1.address)
+        price=price,
+        donations=donations).run(sender=artist1.address)
 
     # Check that the swap was added
     scenario.verify(marketplace.data.swaps.contains(0))
@@ -770,23 +833,25 @@ def test_collect_swap_failure_conditions():
         token_id=token_id))]).run(sender=artist1.address)
 
     # Successfully swap
-    mutez_price = sp.mutez(100)
+    price = sp.mutez(100)
+    donations = []
     scenario += marketplace.swap(
         token_id=token_id,
         editions=editions,
-        mutez_price=mutez_price).run(sender=artist1.address)
+        price=price,
+        donations=donations).run(sender=artist1.address)
 
     # Check that trying to collect a nonexistent swap fails
-    scenario += marketplace.collect(100).run(valid=False, sender=collector1, amount=mutez_price)
+    scenario += marketplace.collect(100).run(valid=False, sender=collector1, amount=price)
 
     # Check that trying to collect own swap fails
-    scenario += marketplace.collect(0).run(valid=False, sender=artist1.address, amount=mutez_price)
+    scenario += marketplace.collect(0).run(valid=False, sender=artist1.address, amount=price)
 
     # Check that providing the wrong tez amount fails
-    scenario += marketplace.collect(0).run(valid=False, sender=collector1, amount=mutez_price + sp.mutez(1))
+    scenario += marketplace.collect(0).run(valid=False, sender=collector1, amount=price + sp.mutez(1))
 
     # Collect the token
-    scenario += marketplace.collect(0).run(sender=collector1, amount=mutez_price)
+    scenario += marketplace.collect(0).run(sender=collector1, amount=price)
 
     # Check that the swap entry still exists
     scenario.verify(marketplace.data.swaps.contains(0))
@@ -796,4 +861,4 @@ def test_collect_swap_failure_conditions():
     scenario.verify(marketplace.data.counter == 1)
 
     # Check that trying to collect the swap fails
-    scenario += marketplace.collect(0).run(valid=False, sender=collector1, amount=mutez_price)
+    scenario += marketplace.collect(0).run(valid=False, sender=collector1, amount=price)
