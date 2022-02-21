@@ -37,6 +37,7 @@ class RecipientContract(sp.Contract):
 
 def get_test_environment():
     # Create the test accounts
+    lambdas_provider = sp.test_account("lambdas_provider")
     user = sp.test_account("user")
 
     # Initialize the artists contracts that will receive the shares
@@ -47,9 +48,11 @@ def get_test_environment():
     # Initialize the collaboration contract
     collaboration = collaborationContract.CollaborationContract(
         metadata=sp.utils.metadata_of_url("ipfs://aaa"),
-        shares={artist1.address: 3000,
-                artist2.address: 1000,
-                artist3.address: 2000})
+        collaborators={
+            artist1.address: sp.record(id=0, share=200),
+            artist2.address: sp.record(id=1, share=500),
+            artist3.address: sp.record(id=2, share=300)},
+        lambdas_provider=lambdas_provider.address)
 
     # Add the contracts to the test scenario
     scenario = sp.test_scenario()
@@ -61,6 +64,7 @@ def get_test_environment():
     # Save all the variables in a test environment dictionary
     testEnvironment = {
         "scenario": scenario,
+        "lambdas_provider": lambdas_provider,
         "user": user,
         "artist1": artist1,
         "artist2": artist2,
@@ -90,7 +94,7 @@ def test_transfer_funds():
 
     # Check that all the funds have been transferred
     scenario.verify(collaboration.balance == sp.mutez(0))
-    scenario.verify(artist1.balance - sp.split_tokens(funds, 3000, 6000) <= sp.mutez(1))
-    scenario.verify(artist2.balance - sp.split_tokens(funds, 1000, 6000) <= sp.mutez(1))
-    scenario.verify(artist3.balance - sp.split_tokens(funds, 2000, 6000) <= sp.mutez(1))
+    scenario.verify(artist1.balance - sp.split_tokens(funds, 200, 1000) <= sp.mutez(1))
+    scenario.verify(artist2.balance - sp.split_tokens(funds, 500, 1000) <= sp.mutez(1))
+    scenario.verify(artist3.balance - sp.split_tokens(funds, 300, 1000) <= sp.mutez(1))
     scenario.verify(funds == (artist1.balance + artist2.balance + artist3.balance))
