@@ -539,27 +539,28 @@ def test_full_example():
     minter.accept_fa2_administrator().run(sender=admin)
 
     # Define the lambda functions for minting and swapping
+    mint_params_type = sp.TRecord(
+        editions=sp.TNat,
+        metadata=sp.TMap(sp.TString, sp.TBytes),
+        data=sp.TMap(sp.TString, sp.TBytes),
+        royalties=sp.TNat).layout(
+            ("editions", ("metadata", ("data", "royalties")))) 
+    swap_params_type = sp.TRecord(
+        token_id=sp.TNat,
+        editions=sp.TNat,
+        price=sp.TMutez,
+        donations=sp.TList(
+            marketplaceContract.MarketplaceContract.ORG_DONATION_TYPE)).layout(
+                ("token_id", ("editions", ("price", "donations"))))
+
     def mint_lambda_function(params):
         sp.set_type(params, sp.TBytes)
-        mint_params_type = sp.TRecord(
-            editions=sp.TNat,
-            metadata=sp.TMap(sp.TString, sp.TBytes),
-            data=sp.TMap(sp.TString, sp.TBytes),
-            royalties=sp.TNat).layout(
-                ("editions", ("metadata", ("data", "royalties"))))
         mint_params = sp.unpack(params, t=mint_params_type).open_some()
         minterHandle = sp.contract(mint_params_type, minter.address, "mint").open_some()
         sp.result([sp.transfer_operation(mint_params, sp.mutez(0), minterHandle)])
 
     def swap_lambda_function(params):
         sp.set_type(params, sp.TBytes)
-        swap_params_type = sp.TRecord(
-            token_id=sp.TNat,
-            editions=sp.TNat,
-            price=sp.TMutez,
-            donations=sp.TList(
-                marketplaceContract.MarketplaceContract.ORG_DONATION_TYPE)).layout(
-                    ("token_id", ("editions", ("price", "donations"))))
         swap_params = sp.unpack(params, t=swap_params_type).open_some()
         marketplaceHandle = sp.contract(swap_params_type, marketplace.address, "swap").open_some()
         sp.result([sp.transfer_operation(swap_params, sp.mutez(0), marketplaceHandle)])
@@ -587,11 +588,13 @@ def test_full_example():
     collaboration = scenario.dynamic_contract(0, originator.contract)
 
     # Add a proposal to mint a token
-    mint_parameters = sp.record(
-        editions=100,
-        metadata={"": sp.utils.bytes_of_string("ipfs://fff")},
-        data={},
-        royalties=200)
+    mint_parameters = sp.set_type_expr(
+        sp.record(
+            editions=100,
+            metadata={"": sp.utils.bytes_of_string("ipfs://fff")},
+            data={},
+            royalties=200),
+        t=mint_params_type)
     collaboration.call("add_proposal", sp.record(
         lambda_id=100,
         parameters=sp.pack(mint_parameters))).run(sender=artist1.address)
