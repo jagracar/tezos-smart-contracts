@@ -112,6 +112,15 @@ class CollaborationContract(sp.Contract):
         # Check that one of the collaborators executed the entry point
         self.check_is_collaborator()
 
+        # Check that the lambda function exists in the lambda provider contract
+        sp.verify(
+            sp.view(
+                name="has_lambda",
+                address=self.data.lambda_provider,
+                param=params.lambda_id,
+                t=sp.TBool).open_some(),
+            message="COLLAB_INEXISTENT_LAMBDA")
+
         # Update the proposals bigmap with the new proposal information
         self.data.proposals[self.data.counter] = sp.record(
             executed=False,
@@ -178,11 +187,15 @@ class CollaborationContract(sp.Contract):
             sp.verify(
                 proposal.value.approvals == sp.len(self.data.collaborators),
                 message="COLLAB_NOT_APPROVED")
+        with sp.else_():
+            sp.verify(
+                proposal.value.approvals >= 1,
+                message="COLLAB_NOT_APPROVED")
 
         # Set the proposal as executed
         self.data.proposals[proposal_id].executed = True
 
-        # Get the lambda funtion to execute from the lambda provider contract
+        # Get the lambda function to execute from the lambda provider contract
         lambda_function = sp.view(
             name="get_lambda",
             address=self.data.lambda_provider,
@@ -278,7 +291,7 @@ class LambdaProviderContract(sp.Contract):
     LAMBDA_RECORD_TYPE = sp.TRecord(
         # Flag to indicate if the lambda function is enabled or disabled
         enabled=sp.TBool,
-        # The lambda funtion alias (e.g mint_objkt, swap_teia)
+        # The lambda function alias (e.g mint_objkt, swap_teia)
         alias=sp.TString,
         # The lambda function
         lambda_function=LAMBDA_FUNCTION_TYPE).layout(
@@ -367,8 +380,19 @@ class LambdaProviderContract(sp.Contract):
         self.data.lambdas[params.lambda_id].enabled = params.enabled
 
     @sp.onchain_view()
+    def has_lambda(self, lambda_id):
+        """Returns true if the lambda function exists.
+
+        """
+        # Define the input parameter data type
+        sp.set_type(lambda_id, sp.TNat)
+
+        # Return true if the lambda function exists
+        sp.result(self.data.lambdas.contains(lambda_id))
+
+    @sp.onchain_view()
     def get_lambda(self, lambda_id):
-        """Returns an existing lambda funtion.
+        """Returns an existing lambda function.
 
         """
         # Define the input parameter data type
@@ -418,6 +442,8 @@ class LambdaProviderContract(sp.Contract):
         # Reset the proposed administrator value
         self.data.proposed_administrator = sp.none
 
+
+sp.add_compilation_target("Collaboration", CollaborationContract())
 
 sp.add_compilation_target("CollabOriginator", CollabOriginatorContract(
     metadata=sp.utils.metadata_of_url("ipfs://aaa")))
