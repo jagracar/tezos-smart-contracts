@@ -538,43 +538,6 @@ def test_full_example():
     fa2.transfer_administrator(minter.address).run(sender=admin)
     minter.accept_fa2_administrator().run(sender=admin)
 
-    # Define the lambda functions for minting and swapping
-    mint_params_type = sp.TRecord(
-        editions=sp.TNat,
-        metadata=sp.TMap(sp.TString, sp.TBytes),
-        data=sp.TMap(sp.TString, sp.TBytes),
-        royalties=sp.TNat).layout(
-            ("editions", ("metadata", ("data", "royalties")))) 
-    swap_params_type = sp.TRecord(
-        token_id=sp.TNat,
-        editions=sp.TNat,
-        price=sp.TMutez,
-        donations=sp.TList(
-            marketplaceContract.MarketplaceContract.ORG_DONATION_TYPE)).layout(
-                ("token_id", ("editions", ("price", "donations"))))
-
-    def mint_lambda_function(params):
-        sp.set_type(params, sp.TBytes)
-        mint_params = sp.unpack(params, t=mint_params_type).open_some()
-        minterHandle = sp.contract(mint_params_type, minter.address, "mint").open_some()
-        sp.result([sp.transfer_operation(mint_params, sp.mutez(0), minterHandle)])
-
-    def swap_lambda_function(params):
-        sp.set_type(params, sp.TBytes)
-        swap_params = sp.unpack(params, t=swap_params_type).open_some()
-        marketplaceHandle = sp.contract(swap_params_type, marketplace.address, "swap").open_some()
-        sp.result([sp.transfer_operation(swap_params, sp.mutez(0), marketplaceHandle)])
-
-    # Add the lambdas to the lambda provider
-    lambda_provider.add_lambda(sp.record(
-        lambda_id=100,
-        alias="mint",
-        lambda_function=mint_lambda_function)).run(sender=admin)
-    lambda_provider.add_lambda(sp.record(
-        lambda_id=101,
-        alias="swap",
-        lambda_function=swap_lambda_function)).run(sender=admin)
-
     # Create a collaboration contract
     originator.create_collaboration(sp.record(
         metadata=sp.utils.metadata_of_url("ipfs://ccc"),
@@ -587,10 +550,68 @@ def test_full_example():
     scenario.register(originator.contract)
     collaboration = scenario.dynamic_contract(0, originator.contract)
 
+    # Define the lambda functions for minting and swapping
+    mint_params_type = sp.TRecord(
+        editions=sp.TNat,
+        metadata=sp.TMap(sp.TString, sp.TBytes),
+        data=sp.TMap(sp.TString, sp.TBytes),
+        royalties=sp.TNat).layout(
+            ("editions", ("metadata", ("data", "royalties")))) 
+    operators_params_type = sp.TList(sp.TVariant(
+        add_operator=extendedFa2Contract.FA2.OPERATOR_KEY_TYPE,
+        remove_operator=extendedFa2Contract.FA2.OPERATOR_KEY_TYPE))
+    swap_params_type = sp.TRecord(
+        token_id=sp.TNat,
+        editions=sp.TNat,
+        price=sp.TMutez,
+        donations=sp.TList(
+            marketplaceContract.MarketplaceContract.ORG_DONATION_TYPE)).layout(
+                ("token_id", ("editions", ("price", "donations"))))
+    combined_params_type = sp.TRecord(
+        owner=sp.TAddress,
+        swap_params=swap_params_type).layout(
+            ("owner", "swap_params"))
+
+    def mint_lambda_function(params):
+        sp.set_type(params, sp.TBytes)
+        mint_params = sp.unpack(params, t=mint_params_type).open_some()
+        minterHandle = sp.contract(mint_params_type, minter.address, "mint").open_some()
+        sp.result([sp.transfer_operation(mint_params, sp.mutez(0), minterHandle)])
+
+    def swap_lambda_function(params):
+        sp.set_type(params, sp.TBytes)
+        params = sp.unpack(params, t=combined_params_type).open_some()
+        add_operator_params = [sp.variant("add_operator", sp.record(
+            owner=params.owner,
+            operator=marketplace.address,
+            token_id=params.swap_params.token_id))]
+        remove_operator_params = [sp.variant("remove_operator", sp.record(
+            owner=params.owner,
+            operator=marketplace.address,
+            token_id=params.swap_params.token_id))]
+        fa2Handle = sp.contract(operators_params_type, fa2.address, "update_operators").open_some()
+        marketplaceHandle = sp.contract(swap_params_type, marketplace.address, "swap").open_some()
+        sp.result([
+            sp.transfer_operation(add_operator_params, sp.mutez(0), fa2Handle),
+            sp.transfer_operation(params.swap_params, sp.mutez(0), marketplaceHandle),
+            sp.transfer_operation(remove_operator_params, sp.mutez(0), fa2Handle)
+        ])
+
+    # Add the lambdas to the lambda provider
+    lambda_provider.add_lambda(sp.record(
+        lambda_id=100,
+        alias="mint",
+        lambda_function=mint_lambda_function)).run(sender=admin)
+    lambda_provider.add_lambda(sp.record(
+        lambda_id=101,
+        alias="swap",
+        lambda_function=swap_lambda_function)).run(sender=admin)
+
     # Add a proposal to mint a token
+    minted_editions = 100
     mint_parameters = sp.set_type_expr(
         sp.record(
-            editions=100,
+            editions=minted_editions,
             metadata={"": sp.utils.bytes_of_string("ipfs://fff")},
             data={},
             royalties=200),
@@ -609,3 +630,69 @@ def test_full_example():
 
     # Execute the mint proposal
     collaboration.call("execute_proposal", sp.nat(0)).run(sender=artist1.address)
+
+    # Check that the FA2 contract information has been updated
+    scenario.verify(fa2.data.ledger[(collaboration.address, 0)] == minted_editions)
+    scenario.verify(fa2.data.token_metadata[0].token_info[""] == mint_parameters.metadata[""])
+    scenario.verify(sp.len(fa2.data.token_data[0]) == 0)
+    scenario.verify(fa2.data.token_royalties[0].minter.address == collaboration.address)
+    scenario.verify(fa2.data.token_royalties[0].minter.royalties == 0)
+    scenario.verify(fa2.data.token_royalties[0].creator.address == collaboration.address)
+    scenario.verify(fa2.data.token_royalties[0].creator.royalties == mint_parameters.royalties)
+
+    # Add a proposal to swap the token
+    swapped_editions = 50
+    price = sp.mutez(10000)
+    swap_parameters = sp.set_type_expr(
+        sp.record(
+            owner=collaboration.address,
+            swap_params=sp.record(
+                token_id=0,
+                editions=swapped_editions,
+                price=price,
+                donations=[])),
+        t=combined_params_type)
+    collaboration.call("add_proposal", sp.record(
+        lambda_id=101,
+        parameters=sp.pack(swap_parameters))).run(sender=artist2.address)
+
+    # The other collaborators approve the proposal
+    collaboration.call("approve", sp.record(
+        proposal_id=1,
+        approval=True)).run(sender=artist1.address)
+    collaboration.call("approve", sp.record(
+        proposal_id=1,
+        approval=True)).run(sender=artist3.address)
+
+    # Execute the swap proposal
+    collaboration.call("execute_proposal", sp.nat(1)).run(sender=artist2.address)
+
+    # Check that the FA2 contract information has been updated
+    scenario.verify(fa2.data.ledger[(collaboration.address, 0)] == minted_editions - swapped_editions)
+    scenario.verify(fa2.data.ledger[(marketplace.address, 0)] == swapped_editions)
+
+    # Check that the swaps big map is correct
+    scenario.verify(marketplace.data.swaps.contains(0))
+    scenario.verify(marketplace.data.swaps[0].issuer == collaboration.address)
+    scenario.verify(marketplace.data.swaps[0].token_id == 0)
+    scenario.verify(marketplace.data.swaps[0].editions == swapped_editions)
+    scenario.verify(marketplace.data.swaps[0].price == price)
+    scenario.verify(sp.len(marketplace.data.swaps[0].donations) == 0)
+    scenario.verify(marketplace.data.counter == 1)
+
+    # Collect the token
+    marketplace.collect(0).run(sender=user, amount=price)
+
+    # Check that the tez arrived to the collaboration
+    received_tez = price - sp.split_tokens(price, 25, 1000)
+    scenario.verify(collaboration.balance == received_tez)
+
+    # Transfer the funds
+    collaboration.call("transfer_funds", sp.unit).run(sender=artist1.address)
+
+    # Check that all the funds have been transferred
+    scenario.verify(collaboration.balance == sp.mutez(0))
+    scenario.verify(artist1.balance - sp.split_tokens(received_tez, 200, 1000) <= sp.mutez(1))
+    scenario.verify(artist2.balance - sp.split_tokens(received_tez, 500, 1000) <= sp.mutez(1))
+    scenario.verify(artist3.balance - sp.split_tokens(received_tez, 300, 1000) <= sp.mutez(1))
+    scenario.verify(received_tez == (artist1.balance + artist2.balance + artist3.balance))
