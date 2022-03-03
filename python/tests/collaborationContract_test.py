@@ -572,6 +572,12 @@ def test_full_example():
         swap_params=swap_params_type).layout(
             ("owner", "swap_params"))
 
+    def cancel_swap_lambda_function(params):
+        sp.set_type(params, sp.TBytes)
+        cancel_swap_params = sp.unpack(params, t=sp.TNat).open_some()
+        marketplaceHandle = sp.contract(sp.TNat, marketplace.address, "cancel_swap").open_some()
+        sp.result([sp.transfer_operation(cancel_swap_params, sp.mutez(0), marketplaceHandle)])
+
     def mint_lambda_function(params):
         sp.set_type(params, sp.TBytes)
         mint_params = sp.unpack(params, t=mint_params_type).open_some()
@@ -598,6 +604,10 @@ def test_full_example():
         ])
 
     # Add the lambdas to the lambda provider
+    lambda_provider.add_lambda(sp.record(
+        lambda_id=0,
+        alias="cancel_swap",
+        lambda_function=cancel_swap_lambda_function)).run(sender=admin)
     lambda_provider.add_lambda(sp.record(
         lambda_id=100,
         alias="mint",
@@ -696,3 +706,19 @@ def test_full_example():
     scenario.verify(artist2.balance - sp.split_tokens(received_tez, 500, 1000) <= sp.mutez(1))
     scenario.verify(artist3.balance - sp.split_tokens(received_tez, 300, 1000) <= sp.mutez(1))
     scenario.verify(received_tez == (artist1.balance + artist2.balance + artist3.balance))
+
+    # Add a proposal to cancel the swap
+    collaboration.call("add_proposal", sp.record(
+        lambda_id=0,
+        parameters=sp.pack(sp.nat(0)))).run(sender=artist2.address)
+
+    # Execute the swap proposal
+    collaboration.call("execute_proposal", sp.nat(2)).run(sender=artist3.address)
+
+    # Check that the FA2 contract information has been updated
+    scenario.verify(fa2.data.ledger[(collaboration.address, 0)] == minted_editions - 1)
+    scenario.verify(fa2.data.ledger[(marketplace.address, 0)] == 0)
+
+    # Check that the swaps big map is correct
+    scenario.verify(~marketplace.data.swaps.contains(0))
+    scenario.verify(marketplace.data.counter == 1)
