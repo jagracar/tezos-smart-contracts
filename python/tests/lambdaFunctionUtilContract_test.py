@@ -56,7 +56,7 @@ def test_lambda_function():
         sp.result([sp.transfer_operation(sp.nat(2), sp.mutez(0), contractHandle)])
 
     # Update and execute the lambda function
-    scenario += lambdaFunctionUtil.update_and_execute_lambda(lambda_function).run(sender=user)
+    lambdaFunctionUtil.update_and_execute_lambda(lambda_function).run(sender=user)
 
     # Check that the dummy contract storage has been updated to the correct vale
     scenario.verify(dummyContract.data.x == 2)

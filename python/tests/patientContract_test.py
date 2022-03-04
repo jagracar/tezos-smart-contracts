@@ -41,14 +41,14 @@ def test_get_sick():
     scenario += c
 
     # Make the patient sick
-    scenario += c.get_sick("cold")
+    c.get_sick("cold")
     scenario.verify(c.data.illness.open_some().name == "cold")
     scenario.verify(~c.data.illness.open_some().medicament.is_some())
     scenario.verify(~c.data.illness.open_some().cured)
 
     # Check that the patient cannot get another illness before is cured from the
     # previous one
-    scenario += c.get_sick("flu").run(valid=False)
+    c.get_sick("flu").run(valid=False)
 
 
 @sp.add_test(name="Test get medicament")
@@ -65,16 +65,16 @@ def test_get_medicament():
     scenario += c
 
     # Make the patient sick
-    scenario += c.get_sick("cold")
+    c.get_sick("cold")
 
     # Get a medicament from the doctor to get cured
-    scenario += c.get_medicament("pills").run(sender=doctor)
+    c.get_medicament("pills").run(sender=doctor)
     scenario.verify(
         c.data.illness.open_some().medicament.open_some() == "pills")
     scenario.verify(c.data.illness.open_some().cured)
 
     # Check that it can only get medicaments from the doctor
-    scenario += c.get_medicament("drugs").run(valid=False, sender=friend)
+    c.get_medicament("drugs").run(valid=False, sender=friend)
 
     # Check that it can get sick again
     scenario += c.get_sick("flu")
@@ -98,13 +98,13 @@ def test_visit_doctor():
 
     # Make the patient sick
     illness = "headache"
-    scenario += patient.get_sick(illness)
+    patient.get_sick(illness)
     scenario.verify(patient.data.illness.open_some().name == illness)
     scenario.verify(~patient.data.illness.open_some().medicament.is_some())
     scenario.verify(~patient.data.illness.open_some().cured)
 
     # Make the patient visit the doctor
-    scenario += patient.visit_doctor()
+    patient.visit_doctor()
 
     # Check that the doctor sent the correct medicament and the patient is cured
     scenario.verify(patient.data.illness.open_some().name == illness)

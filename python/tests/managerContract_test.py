@@ -60,11 +60,11 @@ def test_ping():
     scenario += c
 
     # Ping the contract with the manager account
-    scenario += c.ping().run(sender=user_1, now=sp.timestamp(1000))
+    c.ping().run(sender=user_1, now=sp.timestamp(1000))
     scenario.verify(c.data.last_ping == sp.timestamp(1000))
 
     # Check that the ping will fail if it's not executed by the manager account
-    scenario += c.ping().run(valid=False, sender=user_2, now=sp.timestamp(2000))
+    c.ping().run(valid=False, sender=user_2, now=sp.timestamp(2000))
 
 
 @sp.add_test(name="Test update manager")
@@ -81,12 +81,11 @@ def test_update_manager():
     scenario += c
 
     # Set user 2 as the new manager
-    scenario += c.update_manager(user_2.address).run(sender=user_1)
+    c.update_manager(user_2.address).run(sender=user_1)
     scenario.verify(c.data.manager == user_2.address)
 
     # Check that user 1 cannot update the manager anymore
-    scenario += c.update_manager(user_1.address).run(
-        valid=False, sender=user_1)
+    c.update_manager(user_1.address).run(valid=False, sender=user_1)
     scenario.verify(c.data.manager == user_2.address)
 
 
@@ -105,35 +104,33 @@ def test_update_manager():
     scenario += c
 
     # Add user 2 to the rescue accounts
-    scenario += c.add_rescue_account(user_2.address).run(sender=user_1)
+    c.add_rescue_account(user_2.address).run(sender=user_1)
     scenario.verify(c.data.rescue_accounts.contains(user_2.address))
     scenario.verify(sp.len(c.data.rescue_accounts) == 1)
 
     # Add user 3 to the rescue accounts
-    scenario += c.add_rescue_account(user_3.address).run(sender=user_1)
+    c.add_rescue_account(user_3.address).run(sender=user_1)
     scenario.verify(c.data.rescue_accounts.contains(user_2.address))
     scenario.verify(c.data.rescue_accounts.contains(user_3.address))
     scenario.verify(sp.len(c.data.rescue_accounts) == 2)
 
     # Add user 1 to the rescue accounts
-    scenario += c.add_rescue_account(user_1.address).run(sender=user_1)
+    c.add_rescue_account(user_1.address).run(sender=user_1)
     scenario.verify(c.data.rescue_accounts.contains(user_1.address))
     scenario.verify(c.data.rescue_accounts.contains(user_2.address))
     scenario.verify(c.data.rescue_accounts.contains(user_3.address))
     scenario.verify(sp.len(c.data.rescue_accounts) == 3)
 
     # Remove user 2 from the rescue accounts
-    scenario += c.remove_rescue_account(user_2.address).run(sender=user_1)
+    c.remove_rescue_account(user_2.address).run(sender=user_1)
     scenario.verify(c.data.rescue_accounts.contains(user_1.address))
     scenario.verify(~c.data.rescue_accounts.contains(user_2.address))
     scenario.verify(c.data.rescue_accounts.contains(user_3.address))
     scenario.verify(sp.len(c.data.rescue_accounts) == 2)
 
     # Check that only the manager can add or remove rescue accounts
-    scenario += c.add_rescue_account(user_2.address).run(
-        valid=False, sender=user_3)
-    scenario += c.remove_rescue_account(user_1.address).run(
-        valid=False, sender=user_3)
+    c.add_rescue_account(user_2.address).run(valid=False, sender=user_3)
+    c.remove_rescue_account(user_1.address).run(valid=False, sender=user_3)
     scenario.verify(c.data.rescue_accounts.contains(user_1.address))
     scenario.verify(c.data.rescue_accounts.contains(user_3.address))
     scenario.verify(sp.len(c.data.rescue_accounts) == 2)
@@ -154,30 +151,26 @@ def test_update_manager():
     scenario += c
 
     # Add user 2 to the rescue accounts
-    scenario += c.add_rescue_account(user_2.address).run(sender=user_1)
+    c.add_rescue_account(user_2.address).run(sender=user_1)
     scenario.verify(c.data.rescue_accounts.contains(user_2.address))
     scenario.verify(sp.len(c.data.rescue_accounts) == 1)
 
     # Ping the contract
     ping_time = sp.timestamp(1000)
-    scenario += c.ping().run(sender=user_1, now=ping_time)
+    c.ping().run(sender=user_1, now=ping_time)
 
     # Check that the rescue mode cannot be run before the rescue time has passed
     ellapsed_time = managerContract.DEFAULT_RESCUE_TIME - 10
-    scenario += c.rescue().run(
-        valid=False, sender=user_2, now=ping_time.add_seconds(ellapsed_time))
+    c.rescue().run(valid=False, sender=user_2, now=ping_time.add_seconds(ellapsed_time))
     scenario.verify(c.data.manager == user_1.address)
 
     # Check that the rescue mode only works for users inside the rescue accounts
     ellapsed_time = managerContract.DEFAULT_RESCUE_TIME + 10
-    scenario += c.rescue().run(
-        valid=False, sender=user_3, now=ping_time.add_seconds(ellapsed_time))
-    scenario += c.rescue().run(
-        sender=user_2, now=ping_time.add_seconds(ellapsed_time))
+    c.rescue().run(valid=False, sender=user_3, now=ping_time.add_seconds(ellapsed_time))
+    c.rescue().run(sender=user_2, now=ping_time.add_seconds(ellapsed_time))
     scenario.verify(c.data.manager == user_2.address)
     scenario.verify(c.data.last_ping == ping_time.add_seconds(ellapsed_time))
 
     # Check that the old manager lost its manager rights
-    scenario += c.update_manager(user_1.address).run(
-        valid=False, sender=user_1)
+    c.update_manager(user_1.address).run(valid=False, sender=user_1)
     scenario.verify(c.data.manager == user_2.address)

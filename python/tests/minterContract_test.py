@@ -33,8 +33,8 @@ def get_test_environment():
     scenario += minter
 
     # Set the minter contract as the admin of the FA2 contract
-    scenario += fa2.transfer_administrator(minter.address).run(sender=admin)
-    scenario += minter.accept_fa2_administrator().run(sender=admin)
+    fa2.transfer_administrator(minter.address).run(sender=admin)
+    minter.accept_fa2_administrator().run(sender=admin)
 
     # Save all the variables in a test environment dictionary
     testEnvironment = {
@@ -64,7 +64,7 @@ def test_mint():
     metadata = {"": sp.pack("ipfs://aaa")}
     data = {}
     royalties = 100
-    scenario += minter.mint(
+    minter.mint(
         editions=editions,
         metadata=metadata,
         data=data,
@@ -82,14 +82,14 @@ def test_mint():
     scenario.verify(fa2.data.token_royalties[0].creator.royalties == royalties)
 
     # Check that trying to mint a token with zero editions fails
-    scenario += minter.mint(
+    minter.mint(
         editions=0,
         metadata=metadata,
         data=data,
         royalties=royalties).run(valid=False, sender=user1)
 
     # Check that trying to set very hight royalties fails
-    scenario += minter.mint(
+    minter.mint(
         editions=editions,
         metadata=metadata,
         data=data,
@@ -100,7 +100,7 @@ def test_mint():
     new_metadata = {"": sp.pack("ipfs://bbb")}
     new_data = {"code": sp.pack("print('hello world')")}
     new_royalties = 150
-    scenario += minter.mint(
+    minter.mint(
         editions=new_editions,
         metadata=new_metadata,
         data=new_data,
@@ -142,15 +142,15 @@ def test_transfer_and_accept_administrator():
 
     # Check that only the admin can transfer the administrator
     new_administrator = user1.address
-    scenario += minter.transfer_administrator(new_administrator).run(valid=False, sender=user1)
-    scenario += minter.transfer_administrator(new_administrator).run(sender=admin)
+    minter.transfer_administrator(new_administrator).run(valid=False, sender=user1)
+    minter.transfer_administrator(new_administrator).run(sender=admin)
 
     # Check that the proposed administrator is updated
     scenario.verify(minter.data.proposed_administrator.open_some() == new_administrator)
 
     # Check that only the proposed administrator can accept the administrator position
-    scenario += minter.accept_administrator().run(valid=False, sender=admin)
-    scenario += minter.accept_administrator().run(sender=user1)
+    minter.accept_administrator().run(valid=False, sender=admin)
+    minter.accept_administrator().run(sender=user1)
 
     # Check that the administrator is updated
     scenario.verify(minter.data.administrator == new_administrator)
@@ -158,8 +158,8 @@ def test_transfer_and_accept_administrator():
 
     # Check that only the new administrator can propose a new administrator
     new_administrator = user2.address
-    scenario += minter.transfer_administrator(new_administrator).run(valid=False, sender=admin)
-    scenario += minter.transfer_administrator(new_administrator).run(sender=user1)
+    minter.transfer_administrator(new_administrator).run(valid=False, sender=admin)
+    minter.transfer_administrator(new_administrator).run(sender=user1)
 
     # Check that the proposed administrator is updated
     scenario.verify(minter.data.proposed_administrator.open_some() == new_administrator)
@@ -186,12 +186,12 @@ def test_transfer_and_accept_fa2_administrator():
     scenario.verify(fa2.data.administrator == minter.address)
 
     # Propose the new FA2 token contract administrator
-    scenario += minter.transfer_fa2_administrator(new_minter.address).run(valid=False, sender=user1)
-    scenario += minter.transfer_fa2_administrator(new_minter.address).run(sender=admin)
+    minter.transfer_fa2_administrator(new_minter.address).run(valid=False, sender=user1)
+    minter.transfer_fa2_administrator(new_minter.address).run(sender=admin)
 
     # Accept the new FA2 token contract administrator responsabilities
-    scenario += new_minter.accept_fa2_administrator().run(valid=False, sender=user1)
-    scenario += new_minter.accept_fa2_administrator().run(sender=admin)
+    new_minter.accept_fa2_administrator().run(valid=False, sender=user1)
+    new_minter.accept_fa2_administrator().run(sender=admin)
 
     # Check that the administrator has been updated
     scenario.verify(fa2.data.administrator == new_minter.address)
@@ -201,14 +201,14 @@ def test_transfer_and_accept_fa2_administrator():
     metadata = {"": sp.pack("ipfs://aaa")}
     data = {}
     royalties = 100
-    scenario += minter.mint(
+    minter.mint(
         editions=editions,
         metadata=metadata,
         data=data,
         royalties=royalties).run(valid=False, sender=user1)
 
     # Check that it's possible to mint with the new minter
-    scenario += new_minter.mint(
+    new_minter.mint(
         editions=editions,
         metadata=metadata,
         data=data,
@@ -225,8 +225,8 @@ def test_set_pause():
     minter = testEnvironment["minter"]
 
     # Pause the contract
-    scenario += minter.set_pause(True).run(valid=False, sender=user1)
-    scenario += minter.set_pause(True).run(sender=admin)
+    minter.set_pause(True).run(valid=False, sender=user1)
+    minter.set_pause(True).run(sender=admin)
 
     # Check that the contract is paused
     scenario.verify(minter.data.paused)
@@ -237,22 +237,22 @@ def test_set_pause():
     metadata = {"": sp.pack("ipfs://aaa")}
     data = {}
     royalties = 100
-    scenario += minter.mint(
+    minter.mint(
         editions=editions,
         metadata=metadata,
         data=data,
         royalties=royalties).run(valid=False, sender=user1)
 
     # Unpause the contract
-    scenario += minter.set_pause(False).run(valid=False, sender=user1)
-    scenario += minter.set_pause(False).run(sender=admin)
+    minter.set_pause(False).run(valid=False, sender=user1)
+    minter.set_pause(False).run(sender=admin)
 
     # Check that the contract is not paused
     scenario.verify(~minter.data.paused)
     scenario.verify(~minter.is_paused())
 
     # Check that minting is possible again
-    scenario += minter.mint(
+    minter.mint(
         editions=editions,
         metadata=metadata,
         data=data,

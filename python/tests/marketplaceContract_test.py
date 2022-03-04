@@ -83,11 +83,11 @@ def get_test_environment():
     scenario += fee_recipient
 
     # Set the minter contract as the admin of the FA2 contract
-    scenario += fa2.transfer_administrator(minter.address).run(sender=admin)
-    scenario += minter.accept_fa2_administrator().run(sender=admin)
+    fa2.transfer_administrator(minter.address).run(sender=admin)
+    minter.accept_fa2_administrator().run(sender=admin)
 
     # Change the marketplace fee recipient
-    scenario += marketplace.update_fee_recipient(fee_recipient.address).run(sender=admin)
+    marketplace.update_fee_recipient(fee_recipient.address).run(sender=admin)
 
     # Save all the variables in a test environment dictionary
     testEnvironment = {
@@ -126,7 +126,7 @@ def test_swap_and_collect():
     # Mint a token
     minted_editions = 100
     royalties = 100
-    scenario += minter.mint(
+    minter.mint(
         editions=minted_editions,
         metadata={"": sp.pack("ipfs://fff")},
         data={},
@@ -134,7 +134,7 @@ def test_swap_and_collect():
 
     # Transfer some of the editions to the first artist
     editions = 50
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=artist2.address,
             txs=[sp.record(to_=artist1.address, token_id=0, amount=editions)])
@@ -142,7 +142,7 @@ def test_swap_and_collect():
 
     # Add the marketplace contract as an operator to be able to swap it
     token_id = 0
-    scenario += fa2.update_operators([sp.variant("add_operator", sp.record(
+    fa2.update_operators([sp.variant("add_operator", sp.record(
         owner=artist1.address,
         operator=marketplace.address,
         token_id=token_id))]).run(sender=artist1.address)
@@ -158,14 +158,14 @@ def test_swap_and_collect():
     price = sp.mutez(1000000)
     donations = [sp.record(address=org1.address, donation=100),
                  sp.record(address=org2.address, donation=300)]
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
         price=price,
         donations=donations).run(valid=False, sender=artist1.address, amount=sp.tez(3))
 
     # Swap the token on the marketplace contract
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
         price=price,
@@ -195,15 +195,15 @@ def test_swap_and_collect():
     scenario.verify(marketplace.get_swaps_counter() == 1)
 
     # Check that collecting fails if the collector is the swap issuer
-    scenario += marketplace.collect(0).run(valid=False, sender=artist1.address, amount=price)
+    marketplace.collect(0).run(valid=False, sender=artist1.address, amount=price)
 
     # Check that collecting fails if the exact tez amount is not provided
-    scenario += marketplace.collect(0).run(valid=False, sender=collector1, amount=(price - sp.mutez(1)))
-    scenario += marketplace.collect(0).run(valid=False, sender=collector1, amount=(price + sp.mutez(1)))
+    marketplace.collect(0).run(valid=False, sender=collector1, amount=(price - sp.mutez(1)))
+    marketplace.collect(0).run(valid=False, sender=collector1, amount=(price + sp.mutez(1)))
 
     # Collect the token with two different collectors
-    scenario += marketplace.collect(0).run(sender=collector1, amount=price)
-    scenario += marketplace.collect(0).run(sender=collector2, amount=price)
+    marketplace.collect(0).run(sender=collector1, amount=price)
+    marketplace.collect(0).run(sender=collector2, amount=price)
 
     # Check that all the tez have been sent and the swaps big map has been updated
     scenario.verify(marketplace.balance == sp.mutez(0))
@@ -227,9 +227,9 @@ def test_swap_and_collect():
     scenario.verify(fa2.data.ledger[(collector2.address, token_id)] == 1)
 
     # Check that only the swapper can cancel the swap
-    scenario += marketplace.cancel_swap(0).run(valid=False, sender=collector1)
-    scenario += marketplace.cancel_swap(0).run(valid=False, sender=artist1.address, amount=sp.tez(3))
-    scenario += marketplace.cancel_swap(0).run(sender=artist1.address)
+    marketplace.cancel_swap(0).run(valid=False, sender=collector1)
+    marketplace.cancel_swap(0).run(valid=False, sender=artist1.address, amount=sp.tez(3))
+    marketplace.cancel_swap(0).run(sender=artist1.address)
 
     # Check that the token ledger information is correct
     scenario.verify(fa2.data.ledger[(artist1.address, token_id)] == editions - 2)
@@ -244,7 +244,7 @@ def test_swap_and_collect():
     scenario.verify(marketplace.get_swaps_counter() == 1)
 
     # Check that the swap cannot be cancelled twice
-    scenario += marketplace.cancel_swap(0).run(valid=False, sender=artist1.address)
+    marketplace.cancel_swap(0).run(valid=False, sender=artist1.address)
 
 
 @sp.add_test(name="Test free collect")
@@ -264,7 +264,7 @@ def test_free_collect():
     # Mint a token
     editions = 100
     royalties = 100
-    scenario += minter.mint(
+    minter.mint(
         editions=editions,
         metadata={"": sp.pack("ipfs://fff")},
         data={},
@@ -272,7 +272,7 @@ def test_free_collect():
 
     # Add the marketplace contract as an operator to be able to swap it
     token_id = 0
-    scenario += fa2.update_operators([sp.variant("add_operator", sp.record(
+    fa2.update_operators([sp.variant("add_operator", sp.record(
         owner=artist1.address,
         operator=marketplace.address,
         token_id=token_id))]).run(sender=artist1.address)
@@ -282,14 +282,14 @@ def test_free_collect():
     price = sp.mutez(0)
     donations = [sp.record(address=org1.address, donation=100),
                  sp.record(address=org2.address, donation=300)]
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
         price=price,
         donations=donations).run(sender=artist1.address)
 
     # Collect the token
-    scenario += marketplace.collect(0).run(sender=collector1, amount=price)
+    marketplace.collect(0).run(sender=collector1, amount=price)
 
     # Check that all the tez have been sent and the swaps big map has been updated
     scenario.verify(marketplace.balance == sp.mutez(0))
@@ -322,7 +322,7 @@ def test_very_cheap_collect():
     # Mint a token
     editions = 100
     royalties = 100
-    scenario += minter.mint(
+    minter.mint(
         editions=editions,
         metadata={"": sp.pack("ipfs://fff")},
         data={},
@@ -330,7 +330,7 @@ def test_very_cheap_collect():
 
     # Add the marketplace contract as an operator to be able to swap it
     token_id = 0
-    scenario += fa2.update_operators([sp.variant("add_operator", sp.record(
+    fa2.update_operators([sp.variant("add_operator", sp.record(
         owner=artist1.address,
         operator=marketplace.address,
         token_id=token_id))]).run(sender=artist1.address)
@@ -340,14 +340,14 @@ def test_very_cheap_collect():
     price = sp.mutez(2)
     donations = [sp.record(address=org1.address, donation=100),
                  sp.record(address=org2.address, donation=300)]
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
         price=price,
         donations=donations).run(sender=artist1.address)
 
     # Collect the token
-    scenario += marketplace.collect(0).run(sender=collector1, amount=price)
+    marketplace.collect(0).run(sender=collector1, amount=price)
 
     # Check that all the tez have been sent and the swaps big map has been updated
     scenario.verify(marketplace.balance == sp.mutez(0))
@@ -378,9 +378,9 @@ def test_update_fee():
 
     # Check that only the admin can update the fees
     new_fee = 100
-    scenario += marketplace.update_fee(new_fee).run(valid=False, sender=artist1.address)
-    scenario += marketplace.update_fee(new_fee).run(valid=False, sender=admin, amount=sp.tez(3))
-    scenario += marketplace.update_fee(new_fee).run(sender=admin)
+    marketplace.update_fee(new_fee).run(valid=False, sender=artist1.address)
+    marketplace.update_fee(new_fee).run(valid=False, sender=admin, amount=sp.tez(3))
+    marketplace.update_fee(new_fee).run(sender=admin)
 
     # Check that the fee is updated
     scenario.verify(marketplace.data.fee == new_fee)
@@ -388,7 +388,7 @@ def test_update_fee():
 
     # Check that if fails if we try to set a fee that its too high
     new_fee = 500
-    scenario += marketplace.update_fee(new_fee).run(valid=False, sender=admin)
+    marketplace.update_fee(new_fee).run(valid=False, sender=admin)
 
 
 @sp.add_test(name="Test update fee recipient")
@@ -408,9 +408,9 @@ def test_update_fee_recipient():
 
     # Check that only the admin can update the fee recipient
     new_fee_recipient = artist1.address
-    scenario += marketplace.update_fee_recipient(new_fee_recipient).run(valid=False, sender=artist1.address)
-    scenario += marketplace.update_fee_recipient(new_fee_recipient).run(valid=False, sender=admin, amount=sp.tez(3))
-    scenario += marketplace.update_fee_recipient(new_fee_recipient).run(sender=admin)
+    marketplace.update_fee_recipient(new_fee_recipient).run(valid=False, sender=artist1.address)
+    marketplace.update_fee_recipient(new_fee_recipient).run(valid=False, sender=admin, amount=sp.tez(3))
+    marketplace.update_fee_recipient(new_fee_recipient).run(sender=admin)
 
     # Check that the fee recipient is updated
     scenario.verify(marketplace.data.fee_recipient == new_fee_recipient)
@@ -418,7 +418,7 @@ def test_update_fee_recipient():
 
     # Check that the fee recipient cannot update the fee recipient
     new_fee_recipient = artist2.address
-    scenario += marketplace.update_fee_recipient(new_fee_recipient).run(valid=False, sender=artist1.address)
+    marketplace.update_fee_recipient(new_fee_recipient).run(valid=False, sender=artist1.address)
 
 
 @sp.add_test(name="Test transfer and accept administrator")
@@ -437,17 +437,17 @@ def test_transfer_and_accept_manager():
 
     # Check that only the admin can transfer the administrator
     new_administrator = artist1.address
-    scenario += marketplace.transfer_administrator(new_administrator).run(valid=False, sender=artist1.address)
-    scenario += marketplace.transfer_administrator(new_administrator).run(valid=False, sender=admin, amount=sp.tez(3))
-    scenario += marketplace.transfer_administrator(new_administrator).run(sender=admin)
+    marketplace.transfer_administrator(new_administrator).run(valid=False, sender=artist1.address)
+    marketplace.transfer_administrator(new_administrator).run(valid=False, sender=admin, amount=sp.tez(3))
+    marketplace.transfer_administrator(new_administrator).run(sender=admin)
 
     # Check that the proposed administrator is updated
     scenario.verify(marketplace.data.proposed_administrator.open_some() == new_administrator)
 
     # Check that only the proposed administrator can accept the administrator position
-    scenario += marketplace.accept_administrator().run(valid=False, sender=admin)
-    scenario += marketplace.accept_administrator().run(valid=False, sender=artist1.address, amount=sp.tez(3))
-    scenario += marketplace.accept_administrator().run(sender=artist1.address)
+    marketplace.accept_administrator().run(valid=False, sender=admin)
+    marketplace.accept_administrator().run(valid=False, sender=artist1.address, amount=sp.tez(3))
+    marketplace.accept_administrator().run(sender=artist1.address)
 
     # Check that the administrator is updated
     scenario.verify(marketplace.data.administrator == new_administrator)
@@ -456,8 +456,8 @@ def test_transfer_and_accept_manager():
 
     # Check that only the new administrator can propose a new administrator
     new_administrator = artist2.address
-    scenario += marketplace.transfer_administrator(new_administrator).run(valid=False, sender=admin)
-    scenario += marketplace.transfer_administrator(new_administrator).run(sender=artist1.address)
+    marketplace.transfer_administrator(new_administrator).run(valid=False, sender=admin)
+    marketplace.transfer_administrator(new_administrator).run(sender=artist1.address)
 
     # Check that the proposed administrator is updated
     scenario.verify(marketplace.data.proposed_administrator.open_some() == new_administrator)
@@ -478,7 +478,7 @@ def test_set_pause_swaps():
     # Mint a token
     editions = 100
     royalties = 100
-    scenario += minter.mint(
+    minter.mint(
         editions=editions,
         metadata={"": sp.pack("ipfs://fff")},
         data={},
@@ -486,7 +486,7 @@ def test_set_pause_swaps():
 
     # Add the marketplace contract as an operator to be able to swap it
     token_id = 0
-    scenario += fa2.update_operators([sp.variant("add_operator", sp.record(
+    fa2.update_operators([sp.variant("add_operator", sp.record(
         owner=artist1.address,
         operator=marketplace.address,
         token_id=token_id))]).run(sender=artist1.address)
@@ -495,48 +495,48 @@ def test_set_pause_swaps():
     swapped_editions = 10
     price = sp.mutez(1000000)
     donations = []
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
         price=price,
         donations=donations).run(sender=artist1.address)
 
     # Collect the token
-    scenario += marketplace.collect(0).run(sender=collector1, amount=price)
+    marketplace.collect(0).run(sender=collector1, amount=price)
 
     # Pause the swaps and make sure only the admin can do it
-    scenario += marketplace.set_pause_swaps(True).run(valid=False, sender=collector1)
-    scenario += marketplace.set_pause_swaps(True).run(valid=False, sender=admin, amount=sp.tez(3))
-    scenario += marketplace.set_pause_swaps(True).run(sender=admin)
+    marketplace.set_pause_swaps(True).run(valid=False, sender=collector1)
+    marketplace.set_pause_swaps(True).run(valid=False, sender=admin, amount=sp.tez(3))
+    marketplace.set_pause_swaps(True).run(sender=admin)
 
     # Check that only the swaps are paused
     scenario.verify(marketplace.data.swaps_paused)
     scenario.verify(~marketplace.data.collects_paused)
 
     # Check that swapping is not allowed
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
         price=price,
         donations=donations).run(valid=False, sender=artist1.address)
 
     # Check that collecting is still allowed
-    scenario += marketplace.collect(0).run(sender=collector1, amount=price)
+    marketplace.collect(0).run(sender=collector1, amount=price)
 
     # Check that cancel swaps are still allowed
-    scenario += marketplace.cancel_swap(0).run(sender=artist1.address)
+    marketplace.cancel_swap(0).run(sender=artist1.address)
 
     # Unpause the swaps again
-    scenario += marketplace.set_pause_swaps(False).run(sender=admin)
+    marketplace.set_pause_swaps(False).run(sender=admin)
 
     # Check that swapping and collecting is possible again
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
         price=price,
         donations=donations).run(sender=artist1.address)
-    scenario += marketplace.collect(1).run(sender=collector1, amount=price)
-    scenario += marketplace.cancel_swap(1).run(sender=artist1.address)
+    marketplace.collect(1).run(sender=collector1, amount=price)
+    marketplace.cancel_swap(1).run(sender=artist1.address)
 
 
 @sp.add_test(name="Test set pause collects")
@@ -554,7 +554,7 @@ def test_set_pause_collects():
     # Mint a token
     editions = 100
     royalties = 100
-    scenario += minter.mint(
+    minter.mint(
         editions=editions,
         metadata={"": sp.pack("ipfs://fff")},
         data={},
@@ -562,7 +562,7 @@ def test_set_pause_collects():
 
     # Add the marketplace contract as an operator to be able to swap it
     token_id = 0
-    scenario += fa2.update_operators([sp.variant("add_operator", sp.record(
+    fa2.update_operators([sp.variant("add_operator", sp.record(
         owner=artist1.address,
         operator=marketplace.address,
         token_id=token_id))]).run(sender=artist1.address)
@@ -571,48 +571,48 @@ def test_set_pause_collects():
     swapped_editions = 10
     price = sp.mutez(1000000)
     donations = []
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
         price=price,
         donations=donations).run(sender=artist1.address)
 
     # Collect the OBJKT
-    scenario += marketplace.collect(0).run(sender=collector1, amount=price)
+    marketplace.collect(0).run(sender=collector1, amount=price)
 
     # Pause the collects and make sure only the admin can do it
-    scenario += marketplace.set_pause_collects(True).run(valid=False, sender=collector1)
-    scenario += marketplace.set_pause_collects(True).run(valid=False, sender=admin, amount=sp.tez(3))
-    scenario += marketplace.set_pause_collects(True).run(sender=admin)
+    marketplace.set_pause_collects(True).run(valid=False, sender=collector1)
+    marketplace.set_pause_collects(True).run(valid=False, sender=admin, amount=sp.tez(3))
+    marketplace.set_pause_collects(True).run(sender=admin)
 
     # Check that only the collects are paused
     scenario.verify(~marketplace.data.swaps_paused)
     scenario.verify(marketplace.data.collects_paused)
 
     # Check that collecting is not allowed
-    scenario += marketplace.collect(0).run(valid=False, sender=collector1, amount=price)
+    marketplace.collect(0).run(valid=False, sender=collector1, amount=price)
 
     # Check that swapping is still allowed
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
         price=price,
         donations=donations).run(sender=artist1.address)
 
     # Check that cancel swaps are still allowed
-    scenario += marketplace.cancel_swap(0).run(sender=artist1.address)
+    marketplace.cancel_swap(0).run(sender=artist1.address)
 
     # Unpause the collects again
-    scenario += marketplace.set_pause_collects(False).run(sender=admin)
+    marketplace.set_pause_collects(False).run(sender=admin)
 
     # Check that swapping and collecting is possible again
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=swapped_editions,
         price=price,
         donations=donations).run(sender=artist1.address)
-    scenario += marketplace.collect(2).run(sender=collector1, amount=price)
-    scenario += marketplace.cancel_swap(2).run(sender=artist1.address)
+    marketplace.collect(2).run(sender=collector1, amount=price)
+    marketplace.cancel_swap(2).run(sender=artist1.address)
 
 
 @sp.add_test(name="Test swap failure conditions")
@@ -632,7 +632,7 @@ def test_swap_failure_conditions():
     # Mint a token
     editions = 1
     royalties = 100
-    scenario += minter.mint(
+    minter.mint(
         editions=editions,
         metadata={"": sp.pack("ipfs://fff")},
         data={},
@@ -640,7 +640,7 @@ def test_swap_failure_conditions():
 
     # Add the marketplace contract as an operator to be able to swap it
     token_id = 0
-    scenario += fa2.update_operators([sp.variant("add_operator", sp.record(
+    fa2.update_operators([sp.variant("add_operator", sp.record(
         owner=artist1.address,
         operator=marketplace.address,
         token_id=token_id))]).run(sender=artist1.address)
@@ -648,7 +648,7 @@ def test_swap_failure_conditions():
     # Trying to swap more editions than are available must fail
     price = sp.mutez(1000000)
     donations = []
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=editions + 1,
         price=price,
@@ -656,14 +656,14 @@ def test_swap_failure_conditions():
 
     # Trying to swap a token for which one doesn't have any editions must fail,
     # even for the admin
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=editions,
         price=price,
         donations=donations).run(valid=False, sender=admin)
 
     # Cannot swap 0 items
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=0,
         price=price,
@@ -672,14 +672,14 @@ def test_swap_failure_conditions():
     # Trying to give too many donations must fail
     too_many_donations = [sp.record(address=org1.address, donation=500),
                           sp.record(address=org2.address, donation=501)]
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=editions,
         price=price,
         donations=too_many_donations).run(valid=False, sender=artist1.address)
 
     # Successfully swap
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=editions,
         price=price,
@@ -691,7 +691,7 @@ def test_swap_failure_conditions():
     scenario.verify(marketplace.data.counter == 1)
 
     # Second swap should now fail because all avaliable editions have beeen swapped
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=1,
         price=price,
@@ -700,7 +700,7 @@ def test_swap_failure_conditions():
     # Mint a multi edition from a second OBJKT
     editions = 10
     royalties = 100
-    scenario += minter.mint(
+    minter.mint(
         editions=editions,
         metadata={"": sp.pack("ipfs://fff")},
         data={},
@@ -708,21 +708,21 @@ def test_swap_failure_conditions():
 
     # Add the marketplace contract as an operator to be able to swap it
     token_id = 1
-    scenario += fa2.update_operators([sp.variant("add_operator", sp.record(
+    fa2.update_operators([sp.variant("add_operator", sp.record(
         owner=artist2.address,
         operator=marketplace.address,
         token_id=token_id))]).run(sender=artist2.address)
 
     # Fail to swap second objkt as second artist when too many editions
     price = sp.mutez(12000)
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=editions + 10,
         price=price,
         donations=donations).run(valid=False, sender=artist2.address)
 
     # Successfully swap the second objkt
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=editions,
         price=price,
@@ -736,7 +736,7 @@ def test_swap_failure_conditions():
 
     # Check that is not possible to swap the second objkt because all editions
     # were swapped before
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=1,
         price=price,
@@ -758,7 +758,7 @@ def test_cancel_swap_failure_conditions():
     # Mint a token
     editions = 1
     royalties = 100
-    scenario += minter.mint(
+    minter.mint(
         editions=editions,
         metadata={"": sp.pack("ipfs://fff")},
         data={},
@@ -766,7 +766,7 @@ def test_cancel_swap_failure_conditions():
 
     # Add the marketplace contract as an operator to be able to swap it
     token_id = 0
-    scenario += fa2.update_operators([sp.variant("add_operator", sp.record(
+    fa2.update_operators([sp.variant("add_operator", sp.record(
         owner=artist1.address,
         operator=marketplace.address,
         token_id=token_id))]).run(sender=artist1.address)
@@ -774,7 +774,7 @@ def test_cancel_swap_failure_conditions():
     # Successfully swap
     price = sp.mutez(10000)
     donations = []
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=editions,
         price=price,
@@ -786,16 +786,16 @@ def test_cancel_swap_failure_conditions():
     scenario.verify(marketplace.data.counter == 1)
 
     # Check that cancelling a nonexistent swap fails
-    scenario += marketplace.cancel_swap(1535).run(valid=False, sender=artist1.address)
+    marketplace.cancel_swap(1535).run(valid=False, sender=artist1.address)
 
     # Check that cancelling someone elses swap fails
-    scenario += marketplace.cancel_swap(0).run(valid=False, sender=artist2.address)
+    marketplace.cancel_swap(0).run(valid=False, sender=artist2.address)
 
     # Check that even the admin cannot cancel the swap
-    scenario += marketplace.cancel_swap(0).run(valid=False, sender=admin)
+    marketplace.cancel_swap(0).run(valid=False, sender=admin)
 
     # Check that cancelling own swap works
-    scenario += marketplace.cancel_swap(0).run(sender=artist1.address)
+    marketplace.cancel_swap(0).run(sender=artist1.address)
 
     # Check that the swap is gone
     scenario.verify(~marketplace.data.swaps.contains(0))
@@ -819,7 +819,7 @@ def test_collect_swap_failure_conditions():
     # Mint a token
     editions = 1
     royalties = 100
-    scenario += minter.mint(
+    minter.mint(
         editions=editions,
         metadata={"": sp.pack("ipfs://fff")},
         data={},
@@ -827,7 +827,7 @@ def test_collect_swap_failure_conditions():
 
     # Add the marketplace contract as an operator to be able to swap it
     token_id = 0
-    scenario += fa2.update_operators([sp.variant("add_operator", sp.record(
+    fa2.update_operators([sp.variant("add_operator", sp.record(
         owner=artist1.address,
         operator=marketplace.address,
         token_id=token_id))]).run(sender=artist1.address)
@@ -835,23 +835,23 @@ def test_collect_swap_failure_conditions():
     # Successfully swap
     price = sp.mutez(100)
     donations = []
-    scenario += marketplace.swap(
+    marketplace.swap(
         token_id=token_id,
         editions=editions,
         price=price,
         donations=donations).run(sender=artist1.address)
 
     # Check that trying to collect a nonexistent swap fails
-    scenario += marketplace.collect(100).run(valid=False, sender=collector1, amount=price)
+    marketplace.collect(100).run(valid=False, sender=collector1, amount=price)
 
     # Check that trying to collect own swap fails
-    scenario += marketplace.collect(0).run(valid=False, sender=artist1.address, amount=price)
+    marketplace.collect(0).run(valid=False, sender=artist1.address, amount=price)
 
     # Check that providing the wrong tez amount fails
-    scenario += marketplace.collect(0).run(valid=False, sender=collector1, amount=price + sp.mutez(1))
+    marketplace.collect(0).run(valid=False, sender=collector1, amount=price + sp.mutez(1))
 
     # Collect the token
-    scenario += marketplace.collect(0).run(sender=collector1, amount=price)
+    marketplace.collect(0).run(sender=collector1, amount=price)
 
     # Check that the swap entry still exists
     scenario.verify(marketplace.data.swaps.contains(0))
@@ -861,4 +861,4 @@ def test_collect_swap_failure_conditions():
     scenario.verify(marketplace.data.counter == 1)
 
     # Check that trying to collect the swap fails
-    scenario += marketplace.collect(0).run(valid=False, sender=collector1, amount=price)
+    marketplace.collect(0).run(valid=False, sender=collector1, amount=price)

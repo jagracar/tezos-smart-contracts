@@ -40,10 +40,10 @@ def test_treat_illness():
 
     # Make the patient sick
     illness = "flu"
-    scenario += patient.get_sick(illness)
+    patient.get_sick(illness)
 
     # Treat the patient illness
-    scenario += doctor.treat_illness(illness).run(sender=patient.address)
+    doctor.treat_illness(illness).run(sender=patient.address)
 
     # Check that the doctor sent the correct medicament and the patient is cured
     scenario.verify(patient.data.illness.open_some().name == illness)
@@ -55,5 +55,5 @@ def test_treat_illness():
     scenario.verify(doctor.data.patients.contains(patient.address))
 
     # Clean the doctor patients list
-    scenario += doctor.clean_patients().run(sender=doctor.address)
+    doctor.clean_patients().run(sender=doctor.address)
     scenario.verify(~doctor.data.patients.contains(patient.address))

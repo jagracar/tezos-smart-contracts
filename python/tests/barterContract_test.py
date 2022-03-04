@@ -57,7 +57,6 @@ def get_test_environment():
 def test_propose_trade():
     # Get the test environment
     testEnvironment = get_test_environment()
-    scenario = testEnvironment["scenario"]
     user1 = testEnvironment["user1"]
     user2 = testEnvironment["user2"]
     admin = testEnvironment["admin"]
@@ -66,7 +65,7 @@ def test_propose_trade():
     barter = testEnvironment["barter"]
 
     # Propose a trade that involves only fa2_1 tokens
-    scenario += barter.propose_trade(
+    barter.propose_trade(
         user1=user1.address,
         user2=user2.address,
         mutez_amount=sp.tez(3),
@@ -77,7 +76,7 @@ def test_propose_trade():
             sp.record(fa2=fa2_1.address, id=sp.nat(3), amount=sp.nat(100))])).run(sender=user1)
 
     # Propose a trade that also involves fa2_2 tokens and check that it fails
-    scenario += barter.propose_trade(
+    barter.propose_trade(
         user1=user1.address,
         user2=user2.address,
         mutez_amount=sp.tez(5),
@@ -88,10 +87,10 @@ def test_propose_trade():
             sp.record(fa2=fa2_1.address, id=sp.nat(3), amount=sp.nat(100))])).run(valid=False, sender=user2)
 
     # Add the fa2_2 tokens in the list of allowed tokens
-    scenario += barter.add_fa2(fa2_2.address).run(sender=admin)
+    barter.add_fa2(fa2_2.address).run(sender=admin)
 
     # Propose the trade again and check that now it doesn't fail
-    scenario += barter.propose_trade(
+    barter.propose_trade(
         user1=user1.address,
         user2=user2.address,
         mutez_amount=sp.tez(5),
@@ -106,7 +105,6 @@ def test_propose_trade():
 def test_execute_trade():
     # Get the test environment
     testEnvironment = get_test_environment()
-    scenario = testEnvironment["scenario"]
     user1 = testEnvironment["user1"]
     user2 = testEnvironment["user2"]
     admin = testEnvironment["admin"]
@@ -132,7 +130,7 @@ def test_execute_trade():
         metadata={"" : sp.utils.bytes_of_string("ipfs://eee")}).run(sender=fa2_admin)
 
     # Add the barter contract as operator for the tokens
-    scenario += fa2_1.update_operators(
+    fa2_1.update_operators(
         [sp.variant("add_operator", fa2_1.operator_param.make(
             owner=user1.address,
             operator=barter.address,
@@ -141,14 +139,14 @@ def test_execute_trade():
             owner=user1.address,
             operator=barter.address,
             token_id=1))]).run(sender=user1)
-    scenario += fa2_1.update_operators(
+    fa2_1.update_operators(
         [sp.variant("add_operator", fa2_1.operator_param.make(
             owner=user2.address,
             operator=barter.address,
             token_id=2))]).run(sender=user2)
 
     # Propose a trade
-    scenario += barter.propose_trade(
+    barter.propose_trade(
         user1=user1.address,
         user2=user2.address,
         mutez_amount=sp.tez(3),
@@ -159,21 +157,20 @@ def test_execute_trade():
             sp.record(fa2=fa2_1.address, id=sp.nat(2), amount=sp.nat(100))])).run(sender=user1)
 
     # Accept the trade without sending the tez and check that it fails
-    scenario += barter.accept_trade(0).run(valid=False, sender=user1)
+    barter.accept_trade(0).run(valid=False, sender=user1)
 
     # Accept the trade with the tez included
-    scenario += barter.accept_trade(0).run(sender=user1, amount=sp.tez(3))
-    scenario += barter.accept_trade(0).run(sender=user2)
+    barter.accept_trade(0).run(sender=user1, amount=sp.tez(3))
+    barter.accept_trade(0).run(sender=user2)
 
     # Execute the trade
-    scenario += barter.execute_trade(0).run(sender=user2)
+    barter.execute_trade(0).run(sender=user2)
 
 
 @sp.add_test(name="Test cancel trade")
 def test_cancel_trade():
     # Get the test environment
     testEnvironment = get_test_environment()
-    scenario = testEnvironment["scenario"]
     user1 = testEnvironment["user1"]
     user2 = testEnvironment["user2"]
     admin = testEnvironment["admin"]
@@ -199,7 +196,7 @@ def test_cancel_trade():
         metadata={"" : sp.utils.bytes_of_string("ipfs://eee")}).run(sender=fa2_admin)
 
     # Add the barter contract as operator for the tokens
-    scenario += fa2_1.update_operators(
+    fa2_1.update_operators(
         [sp.variant("add_operator", fa2_1.operator_param.make(
             owner=user1.address,
             operator=barter.address,
@@ -208,14 +205,14 @@ def test_cancel_trade():
             owner=user1.address,
             operator=barter.address,
             token_id=1))]).run(sender=user1)
-    scenario += fa2_1.update_operators(
+    fa2_1.update_operators(
         [sp.variant("add_operator", fa2_1.operator_param.make(
             owner=user2.address,
             operator=barter.address,
             token_id=2))]).run(sender=user2)
 
     # Propose a trade
-    scenario += barter.propose_trade(
+    barter.propose_trade(
         user1=user1.address,
         user2=user2.address,
         mutez_amount=sp.tez(3),
@@ -226,9 +223,9 @@ def test_cancel_trade():
             sp.record(fa2=fa2_1.address, id=sp.nat(2), amount=sp.nat(100))])).run(sender=user1)
 
     # Accept the trade
-    scenario += barter.accept_trade(0).run(sender=user1, amount=sp.tez(3))
-    scenario += barter.accept_trade(0).run(sender=user2)
+    barter.accept_trade(0).run(sender=user1, amount=sp.tez(3))
+    barter.accept_trade(0).run(sender=user2)
 
     # Cancel the trade
-    scenario += barter.cancel_trade(0).run(sender=user1)
-    scenario += barter.cancel_trade(0).run(sender=user2)
+    barter.cancel_trade(0).run(sender=user1)
+    barter.cancel_trade(0).run(sender=user2)

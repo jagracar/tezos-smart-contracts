@@ -95,7 +95,7 @@ def test_trade_with_second_user():
             sp.record(to_=user3.address, token_id=1, amount=30)]))])).run(sender=user2)
 
     # Add the barter contract as operator for the tokens
-    scenario += fa2_1.update_operators(
+    fa2_1.update_operators(
         [sp.variant("add_operator", fa2_1.operator_param.make(
             owner=user1.address,
             operator=barter.address,
@@ -104,7 +104,7 @@ def test_trade_with_second_user():
             owner=user1.address,
             operator=barter.address,
             token_id=1))]).run(sender=user1)
-    scenario += fa2_2.update_operators(
+    fa2_2.update_operators(
         [sp.variant("add_operator", fa2_2.operator_param.make(
             owner=user1.address,
             operator=barter.address,
@@ -113,12 +113,12 @@ def test_trade_with_second_user():
             owner=user1.address,
             operator=barter.address,
             token_id=1))]).run(sender=user1)
-    scenario += fa2_2.update_operators(
+    fa2_2.update_operators(
         [sp.variant("add_operator", fa2_2.operator_param.make(
             owner=user2.address,
             operator=barter.address,
             token_id=1))]).run(sender=user2)
-    scenario += fa2_2.update_operators(
+    fa2_2.update_operators(
         [sp.variant("add_operator", fa2_2.operator_param.make(
             owner=user3.address,
             operator=barter.address,
@@ -133,7 +133,7 @@ def test_trade_with_second_user():
     scenario.verify(fa2_2.data.ledger[(user3.address, 1)].balance == 30)
 
     # Propose a trade with the second user
-    scenario += barter.propose_trade(
+    barter.propose_trade(
         tokens=sp.list([
             sp.record(fa2=fa2_1.address, id=sp.nat(0), amount=sp.nat(1)),
             sp.record(fa2=fa2_1.address, id=sp.nat(1), amount=sp.nat(2)),
@@ -141,7 +141,7 @@ def test_trade_with_second_user():
         for_tokens=sp.list([
             sp.record(fa2=fa2_2.address, id=sp.nat(1), amount=sp.nat(10))]),
         with_user=sp.some(user2.address)).run(valid=False, sender=user1, amount=sp.tez(3))
-    scenario += barter.propose_trade(
+    barter.propose_trade(
         tokens=sp.list([
             sp.record(fa2=fa2_1.address, id=sp.nat(0), amount=sp.nat(1)),
             sp.record(fa2=fa2_1.address, id=sp.nat(1), amount=sp.nat(2)),
@@ -163,12 +163,12 @@ def test_trade_with_second_user():
 
     # Check that the first and third users cannot accept the trade because they
     # are not the assigned second user
-    scenario += barter.accept_trade(0).run(valid=False, sender=user1)
-    scenario += barter.accept_trade(0).run(valid=False, sender=user3)
+    barter.accept_trade(0).run(valid=False, sender=user1)
+    barter.accept_trade(0).run(valid=False, sender=user3)
 
     # The second user accepts the trade
-    scenario += barter.accept_trade(0).run(valid=False, sender=user2, amount=sp.tez(3))
-    scenario += barter.accept_trade(0).run(sender=user2)
+    barter.accept_trade(0).run(valid=False, sender=user2, amount=sp.tez(3))
+    barter.accept_trade(0).run(sender=user2)
 
     # Check that the OBJKT ledger information is correct
     scenario.verify(fa2_1.data.ledger[(user1.address, 0)].balance == 100 - 1)
@@ -185,7 +185,7 @@ def test_trade_with_second_user():
     scenario.verify(fa2_2.data.ledger[(barter.address, 0)].balance == 0)
 
     # Check that the second user cannot accept twice the trade
-    scenario += barter.accept_trade(0).run(valid=False, sender=user2)
+    barter.accept_trade(0).run(valid=False, sender=user2)
 
 
 @sp.add_test(name="Test trade without second user")
@@ -224,7 +224,7 @@ def test_trade_without_second_user():
         metadata={"" : sp.utils.bytes_of_string("ipfs://eee")}).run(sender=fa2_admin)
 
     # Add the barter contract as operator for the tokens
-    scenario += fa2_1.update_operators(
+    fa2_1.update_operators(
         [sp.variant("add_operator", fa2_1.operator_param.make(
             owner=user1.address,
             operator=barter.address,
@@ -233,12 +233,12 @@ def test_trade_without_second_user():
             owner=user1.address,
             operator=barter.address,
             token_id=1))]).run(sender=user1)
-    scenario += fa2_2.update_operators(
+    fa2_2.update_operators(
         [sp.variant("add_operator", fa2_2.operator_param.make(
             owner=user1.address,
             operator=barter.address,
             token_id=0))]).run(sender=user1)
-    scenario += fa2_2.update_operators(
+    fa2_2.update_operators(
         [sp.variant("add_operator", fa2_2.operator_param.make(
             owner=user2.address,
             operator=barter.address,
@@ -251,7 +251,7 @@ def test_trade_without_second_user():
     scenario.verify(fa2_2.data.ledger[(user2.address, 1)].balance == 100)
 
     # Propose a trade with no specific second user
-    scenario += barter.propose_trade(
+    barter.propose_trade(
         tokens=sp.list([
             sp.record(fa2=fa2_1.address, id=sp.nat(0), amount=sp.nat(1)),
             sp.record(fa2=fa2_1.address, id=sp.nat(1), amount=sp.nat(2)),
@@ -271,11 +271,11 @@ def test_trade_without_second_user():
 
     # Check that the first and third users cannot accept the trade because they
     # don't own the requested token
-    scenario += barter.accept_trade(0).run(valid=False, sender=user1)
-    scenario += barter.accept_trade(0).run(valid=False, sender=user3)
+    barter.accept_trade(0).run(valid=False, sender=user1)
+    barter.accept_trade(0).run(valid=False, sender=user3)
 
     # The second user accepts the trade
-    scenario += barter.accept_trade(0).run(sender=user2)
+    barter.accept_trade(0).run(sender=user2)
 
     # Check that the OBJKT ledger information is correct
     scenario.verify(fa2_1.data.ledger[(user1.address, 0)].balance == 100 - 1)
@@ -291,7 +291,7 @@ def test_trade_without_second_user():
     scenario.verify(fa2_2.data.ledger[(barter.address, 0)].balance == 0)
 
     # Check that the second user cannot accept twice the trade
-    scenario += barter.accept_trade(0).run(valid=False, sender=user2)
+    barter.accept_trade(0).run(valid=False, sender=user2)
 
 
 @sp.add_test(name="Test trade same user")
@@ -328,7 +328,7 @@ def test_trade_same_user():
         metadata={"" : sp.utils.bytes_of_string("ipfs://eee")}).run(sender=fa2_admin)
 
     # Add the barter contract as operator for the tokens
-    scenario += fa2_1.update_operators(
+    fa2_1.update_operators(
         [sp.variant("add_operator", fa2_1.operator_param.make(
             owner=user1.address,
             operator=barter.address,
@@ -337,7 +337,7 @@ def test_trade_same_user():
             owner=user1.address,
             operator=barter.address,
             token_id=1))]).run(sender=user1)
-    scenario += fa2_2.update_operators(
+    fa2_2.update_operators(
         [sp.variant("add_operator", fa2_2.operator_param.make(
             owner=user1.address,
             operator=barter.address,
@@ -354,7 +354,7 @@ def test_trade_same_user():
     scenario.verify(fa2_2.data.ledger[(user1.address, 1)].balance == 100)
 
     # Propose a trade with no specific second user
-    scenario += barter.propose_trade(
+    barter.propose_trade(
         tokens=sp.list([
             sp.record(fa2=fa2_1.address, id=sp.nat(0), amount=sp.nat(1)),
             sp.record(fa2=fa2_1.address, id=sp.nat(1), amount=sp.nat(2)),
@@ -373,7 +373,7 @@ def test_trade_same_user():
     scenario.verify(fa2_2.data.ledger[(barter.address, 0)].balance == 2)
 
     # The first user accepts its own trade
-    scenario += barter.accept_trade(0).run(sender=user1)
+    barter.accept_trade(0).run(sender=user1)
 
     # Check that the OBJKT ledger information is correct
     scenario.verify(fa2_1.data.ledger[(user1.address, 0)].balance == 100)
@@ -385,7 +385,7 @@ def test_trade_same_user():
     scenario.verify(fa2_2.data.ledger[(barter.address, 0)].balance == 0)
 
     # Check that the first user cannot accept twice the trade
-    scenario += barter.accept_trade(0).run(valid=False, sender=user1)
+    barter.accept_trade(0).run(valid=False, sender=user1)
 
 @sp.add_test(name="Test cancel trade")
 def test_cancel_trade():
@@ -422,7 +422,7 @@ def test_cancel_trade():
         metadata={"" : sp.utils.bytes_of_string("ipfs://eee")}).run(sender=fa2_admin)
 
     # Add the barter contract as operator for the tokens
-    scenario += fa2_1.update_operators(
+    fa2_1.update_operators(
         [sp.variant("add_operator", fa2_1.operator_param.make(
             owner=user1.address,
             operator=barter.address,
@@ -431,12 +431,12 @@ def test_cancel_trade():
             owner=user1.address,
             operator=barter.address,
             token_id=1))]).run(sender=user1)
-    scenario += fa2_2.update_operators(
+    fa2_2.update_operators(
         [sp.variant("add_operator", fa2_2.operator_param.make(
             owner=user1.address,
             operator=barter.address,
             token_id=0))]).run(sender=user1)
-    scenario += fa2_2.update_operators(
+    fa2_2.update_operators(
         [sp.variant("add_operator", fa2_2.operator_param.make(
             owner=user2.address,
             operator=barter.address,
@@ -449,7 +449,7 @@ def test_cancel_trade():
     scenario.verify(fa2_2.data.ledger[(user2.address, 1)].balance == 100)
 
     # Propose a trade with the second user
-    scenario += barter.propose_trade(
+    barter.propose_trade(
         tokens=sp.list([
             sp.record(fa2=fa2_1.address, id=sp.nat(0), amount=sp.nat(1)),
             sp.record(fa2=fa2_1.address, id=sp.nat(1), amount=sp.nat(2)),
@@ -468,11 +468,11 @@ def test_cancel_trade():
     scenario.verify(fa2_2.data.ledger[(barter.address, 0)].balance == 2)
 
     # Check that the second user cannot cancel the trade
-    scenario += barter.cancel_trade(0).run(valid=False, sender=user2)
+    barter.cancel_trade(0).run(valid=False, sender=user2)
 
     # Cancel the trade
-    scenario += barter.cancel_trade(0).run(valid=False, sender=user1, amount=sp.tez(3))
-    scenario += barter.cancel_trade(0).run(sender=user1)
+    barter.cancel_trade(0).run(valid=False, sender=user1, amount=sp.tez(3))
+    barter.cancel_trade(0).run(sender=user1)
 
     # Check that the OBJKT ledger information is correct
     scenario.verify(fa2_1.data.ledger[(user1.address, 0)].balance == 100)
@@ -484,4 +484,4 @@ def test_cancel_trade():
     scenario.verify(fa2_2.data.ledger[(barter.address, 0)].balance == 0)
 
     # Check that the first user cannot cancel the trade again
-    scenario += barter.cancel_trade(0).run(valid=False, sender=user1)
+    barter.cancel_trade(0).run(valid=False, sender=user1)

@@ -60,7 +60,7 @@ def test_register_game():
 
     # Register a game between the two players
     game_id = 3
-    scenario += court_contract.register_game(sp.record(
+    court_contract.register_game(sp.record(
         game_id=game_id,
         player_1=player_1_contract.address,
         player_2=player_2_contract.address))
@@ -80,7 +80,7 @@ def test_register_game():
     scenario.verify(game.played_games == 0)
 
     # Check that one cannot register the same game again
-    scenario += court_contract.register_game(sp.record(
+    court_contract.register_game(sp.record(
         game_id=game_id,
         player_1=player_1_contract.address,
         player_2=player_2_contract.address)).run(valid=False)
@@ -105,13 +105,13 @@ def test_accept_game():
 
     # Register a game between the two players
     game_id = 5
-    scenario += court_contract.register_game(sp.record(
+    court_contract.register_game(sp.record(
         game_id=game_id,
         player_1=player_1_contract.address,
         player_2=player_2_contract.address))
 
     # Player 2 accepts the game
-    scenario += court_contract.accept_game(sp.record(
+    court_contract.accept_game(sp.record(
         game_id=game_id, accept=True)).run(sender=player_2_contract.address)
 
     # Check that the information in the contract strorage is correct
@@ -139,16 +139,16 @@ def test_add_game():
 
     # Register a game between the two players
     game_id = 5
-    scenario += court_contract.register_game(sp.record(
+    court_contract.register_game(sp.record(
         game_id=game_id,
         player_1=player_1_contract.address,
         player_2=player_2_contract.address))
 
     # Add the game to the two players
-    scenario += player_1_contract.add_game(sp.record(
+    player_1_contract.add_game(sp.record(
         game_id=game_id, court=court_contract.address,
         opponent=player_2_contract.address)).run(sender=player_1)
-    scenario += player_2_contract.add_game(sp.record(
+    player_2_contract.add_game(sp.record(
         game_id=game_id, court=court_contract.address,
         opponent=player_1_contract.address)).run(sender=player_2)
 
@@ -186,21 +186,21 @@ def test_play_game():
 
     # Register a game between the two players
     game_id = 5
-    scenario += court_contract.register_game(sp.record(
+    court_contract.register_game(sp.record(
         game_id=game_id,
         player_1=player_1_contract.address,
         player_2=player_2_contract.address))
 
     # Add the game to the two players
-    scenario += player_1_contract.add_game(sp.record(
+    player_1_contract.add_game(sp.record(
         game_id=game_id, court=court_contract.address,
         opponent=player_2_contract.address)).run(sender=player_1)
-    scenario += player_2_contract.add_game(sp.record(
+    player_2_contract.add_game(sp.record(
         game_id=game_id, court=court_contract.address,
         opponent=player_1_contract.address)).run(sender=player_2)
 
     # Play one game
-    scenario += player_1_contract.play_game(game_id).run(sender=player_1)
+    player_1_contract.play_game(game_id).run(sender=player_1)
 
     # Check that the information in the contract strorages is correct
     scenario.verify(player_1_contract.data.games[game_id].ball_hits == 3)
@@ -212,7 +212,7 @@ def test_play_game():
     scenario.verify(game.played_games == 1)
 
     # Play another game
-    scenario += player_2_contract.play_game(game_id).run(sender=player_2)
+    player_2_contract.play_game(game_id).run(sender=player_2)
 
     # Check that the information in the contract strorages is correct
     scenario.verify(player_1_contract.data.games[game_id].ball_hits == 2)
@@ -224,7 +224,7 @@ def test_play_game():
     scenario.verify(game.played_games == 2)
 
     # Play another game
-    scenario += player_2_contract.play_game(game_id).run(sender=player_2)
+    player_2_contract.play_game(game_id).run(sender=player_2)
 
     # Check that the information in the contract strorages is correct
     scenario.verify(player_1_contract.data.games[game_id].ball_hits == 2)

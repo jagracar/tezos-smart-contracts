@@ -86,14 +86,14 @@ def test_mint():
     editions = 5
     metadata = {"": sp.pack("ipfs://fff")}
     token_id = 0
-    scenario += fa2.mint(
+    fa2.mint(
         address=address,
         amount=editions,
         metadata=metadata,
         token_id=token_id).run(valid=False, sender=user1)
 
     # Check that the admin can mint
-    scenario += fa2.mint(
+    fa2.mint(
         address=address,
         amount=editions,
         metadata=metadata,
@@ -114,7 +114,7 @@ def test_mint():
 
     # Check that it's possible to mint again the same token id
     new_metadata = {"": sp.pack("ipfs://zzz")}
-    scenario += fa2.mint(
+    fa2.mint(
         address=address,
         amount=editions,
         metadata=new_metadata,
@@ -135,7 +135,7 @@ def test_mint():
 
     # Check that it's possible to mint again the same token id with another address
     new_address = user2.address
-    scenario += fa2.mint(
+    fa2.mint(
         address=new_address,
         amount=editions,
         metadata=new_metadata,
@@ -153,7 +153,7 @@ def test_mint():
     scenario.verify(fa2.total_supply(token_id) == 3 * editions)
 
     # Check that minting doesn't fail if the number of editions is zero
-    scenario += fa2.mint(
+    fa2.mint(
         address=address,
         amount=0,
         metadata=new_metadata,
@@ -167,7 +167,7 @@ def test_mint():
     scenario.verify(fa2.total_supply(token_id) == 3 * editions)
 
     # Check that minting fails if the token ids are not consecutive
-    scenario += fa2.mint(
+    fa2.mint(
         address=address,
         amount=0,
         metadata=new_metadata,
@@ -176,7 +176,7 @@ def test_mint():
     # Mint the next token
     new_editions = 20
     new_token_id = token_id + 1
-    scenario += fa2.mint(
+    fa2.mint(
         address=new_address,
         amount=new_editions,
         metadata=new_metadata,
@@ -215,7 +215,7 @@ def test_transfer():
     editions = 15
     metadata = {"": sp.pack("ipfs://fff")}
     token_id = 0
-    scenario += fa2.mint(
+    fa2.mint(
         address=user1.address,
         amount=editions,
         metadata=metadata,
@@ -228,14 +228,14 @@ def test_transfer():
     scenario.verify(fa2.total_supply(token_id) == editions)
 
     # Check that another user cannot transfer the token
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=user1.address,
             txs=[sp.record(to_=user3.address, token_id=token_id, amount=3)])
         ]).run(valid=False, sender=user2)
 
     # Check that the owner can transfer the token
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=user1.address,
             txs=[sp.record(to_=user3.address, token_id=token_id, amount=3)])
@@ -248,7 +248,7 @@ def test_transfer():
     scenario.verify(fa2.total_supply(token_id) == editions)
 
     # Check that the admin can transfer the token
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=user1.address,
             txs=[sp.record(to_=user2.address, token_id=token_id, amount=3)])
@@ -262,26 +262,26 @@ def test_transfer():
     scenario.verify(fa2.total_supply(token_id) == editions)
 
     # Check that the owner or the admin cannot transfer more tokens that the owner has
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=user1.address,
             txs=[sp.record(to_=user2.address, token_id=token_id, amount=30)])
         ]).run(valid=False, sender=admin)
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=user1.address,
             txs=[sp.record(to_=user2.address, token_id=token_id, amount=30)])
         ]).run(valid=False, sender=user1)
 
     # Check that an owner cannot transfer other owners editions
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=user1.address,
             txs=[sp.record(to_=user3.address, token_id=token_id, amount=1)])
         ]).run(valid=False, sender=user2)
 
     # Check that the owner can transfer their own editions
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=user2.address,
             txs=[sp.record(to_=user3.address, token_id=token_id, amount=1)])
@@ -295,13 +295,13 @@ def test_transfer():
     scenario.verify(fa2.total_supply(token_id) == editions)
 
     # Make the second user as operator of the first user token
-    scenario += fa2.update_operators([sp.variant("add_operator", sp.record(
+    fa2.update_operators([sp.variant("add_operator", sp.record(
         owner=user1.address,
         operator=user2.address,
         token_id=token_id))]).run(sender=user1)
 
     # Check that the second user now can transfer the user1 editions
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=user1.address,
             txs=[sp.record(to_=user3.address, token_id=token_id, amount=5)])
@@ -327,12 +327,12 @@ def test_complex_transfer():
     fa2 = testEnvironment["fa2"]
 
     # Mint two tokens
-    scenario += fa2.mint(
+    fa2.mint(
         address=user1.address,
         amount=10,
         metadata={"": sp.pack("ipfs://aaa")},
         token_id=0).run(sender=admin)
-    scenario += fa2.mint(
+    fa2.mint(
         address=user2.address,
         amount=20,
         metadata={"": sp.pack("ipfs://bbb")},
@@ -345,7 +345,7 @@ def test_complex_transfer():
     scenario.verify(fa2.data.total_supply[1] == 20)
 
     # Check that users can only transfer tokens they own
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=user1.address,
             txs=[sp.record(to_=user3.address, token_id=0, amount=3)]),
@@ -355,7 +355,7 @@ def test_complex_transfer():
         ]).run(valid=False, sender=user1)
 
     # Check that the owner can transfer the token to several users
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=user1.address,
             txs=[
@@ -370,7 +370,7 @@ def test_complex_transfer():
     scenario.verify(fa2.data.ledger[(user2.address, 1)].balance == 20)
 
     # Check that the admin can transfer whatever token they want
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=user1.address,
             txs=[sp.record(to_=user3.address, token_id=0, amount=1)]),
@@ -387,7 +387,7 @@ def test_complex_transfer():
     scenario.verify(fa2.data.ledger[(user3.address, 1)].balance == 5)
 
     # Check that owners can transfer tokens to themselves
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=user2.address,
             txs=[
@@ -404,13 +404,13 @@ def test_complex_transfer():
     scenario.verify(fa2.data.ledger[(user3.address, 1)].balance == 5)
 
     # Make the second user as operator of the first user token
-    scenario += fa2.update_operators([sp.variant("add_operator", sp.record(
+    fa2.update_operators([sp.variant("add_operator", sp.record(
         owner=user1.address,
         operator=user2.address,
         token_id=0))]).run(sender=user1)
 
     # Check that the second user can transfer their tokens and the fist user token
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=user2.address,
             txs=[sp.record(to_=user3.address, token_id=1, amount=1)]),
@@ -451,17 +451,17 @@ def test_balance_of():
             entry_point="receive_balances").open_some()
 
     # Mint two tokens
-    scenario += fa2.mint(
+    fa2.mint(
         address=user1.address,
         amount=10,
         metadata={"": sp.pack("ipfs://aaa")},
         token_id=0).run(sender=admin)
-    scenario += fa2.mint(
+    fa2.mint(
         address=user2.address,
         amount=20,
         metadata={"": sp.pack("ipfs://bbb")},
         token_id=1).run(sender=admin)
-    scenario += fa2.mint(
+    fa2.mint(
         address=user3.address,
         amount=5,
         metadata={"": sp.pack("ipfs://ccc")},
@@ -479,12 +479,12 @@ def test_balance_of():
     scenario.verify(sp.is_failing(fa2.get_balance(sp.record(owner=user1.address, token_id=10))))
 
     # Check that asking for the token balances fails if the token doesn't exist
-    scenario += fa2.balance_of(sp.record(
+    fa2.balance_of(sp.record(
         requests=[sp.record(owner=user1.address, token_id=10)],
         callback=c)).run(valid=False, sender=user3)
 
     # Ask for the token balances
-    scenario += fa2.balance_of(sp.record(
+    fa2.balance_of(sp.record(
         requests=[
             sp.record(owner=user1.address, token_id=0),
             sp.record(owner=user2.address, token_id=0),
@@ -503,10 +503,10 @@ def test_balance_of():
     scenario.verify(dummyContract.data.balances[(user3.address, 1)] == 5)
 
     # Pause the contract
-    scenario += fa2.set_pause(True).run(sender=admin)
+    fa2.set_pause(True).run(sender=admin)
 
     # Ceck that now asking for the token balances fails
-    scenario += fa2.balance_of(sp.record(
+    fa2.balance_of(sp.record(
         requests=[
             sp.record(owner=user1.address, token_id=0),
             sp.record(owner=user2.address, token_id=0),
@@ -529,12 +529,12 @@ def test_update_operators():
     fa2 = testEnvironment["fa2"]
 
     # Mint two tokens
-    scenario += fa2.mint(
+    fa2.mint(
         address=user1.address,
         amount=10,
         metadata={"": sp.pack("ipfs://aaa")},
         token_id=0).run(sender=admin)
-    scenario += fa2.mint(
+    fa2.mint(
         address=user2.address,
         amount=20,
         metadata={"": sp.pack("ipfs://bbb")},
@@ -547,19 +547,19 @@ def test_update_operators():
         sp.record(owner=user1.address, operator=user2.address, token_id=0)))
 
     # Check that is not possible to change the operators if one is not the owner
-    scenario += fa2.update_operators([
+    fa2.update_operators([
         sp.variant("add_operator", sp.record(
             owner=user1.address,
             operator=user2.address,
             token_id=0))]).run(valid=False, sender=user2)
-    scenario += fa2.update_operators([
+    fa2.update_operators([
         sp.variant("add_operator", sp.record(
             owner=user1.address,
             operator=user2.address,
             token_id=0))]).run(valid=False, sender=user3)
 
     # Check that the admin can add operators
-    scenario += fa2.update_operators([
+    fa2.update_operators([
         sp.variant("add_operator", sp.record(
             owner=user1.address,
             operator=user2.address,
@@ -571,7 +571,7 @@ def test_update_operators():
 
     # Check that the user can change the operators of token they own or might
     # own in the future
-    scenario += fa2.update_operators([
+    fa2.update_operators([
         sp.variant("add_operator", sp.record(
             owner=user1.address,
             operator=user3.address,
@@ -597,7 +597,7 @@ def test_update_operators():
         sp.record(owner=user1.address, operator=user3.address, token_id=10)))
 
     # Check that adding and removing operators works at the same time
-    scenario += fa2.update_operators([
+    fa2.update_operators([
         sp.variant("remove_operator", sp.record(
             owner=user1.address,
             operator=user3.address,
@@ -627,7 +627,7 @@ def test_update_operators():
     # Check that removing an operator that doesn't exist works
     scenario.verify(~fa2.is_operator(
         sp.record(owner=user1.address, operator=user3.address, token_id=100)))
-    scenario += fa2.update_operators([
+    fa2.update_operators([
         sp.variant("remove_operator", sp.record(
             owner=user1.address,
             operator=user3.address,
@@ -639,19 +639,19 @@ def test_update_operators():
         sp.record(owner=user1.address, operator=user3.address, token_id=100)))
 
     # Check operators cannot change the operators of editions that they don't own
-    scenario += fa2.update_operators([
+    fa2.update_operators([
         sp.variant("add_operator", sp.record(
             owner=user1.address,
             operator=user3.address,
             token_id=0))]).run(valid=False, sender=user2)
-    scenario += fa2.update_operators([
+    fa2.update_operators([
         sp.variant("remove_operator", sp.record(
             owner=user1.address,
             operator=user2.address,
             token_id=0))]).run(valid=False, sender=user2)
 
     # Check that the admin can remove operators
-    scenario += fa2.update_operators([
+    fa2.update_operators([
         sp.variant("remove_operator", sp.record(
             owner=user1.address,
             operator=user2.address,
@@ -676,8 +676,8 @@ def test_set_administrator():
 
     # Check that only the admin can set the new administrator
     new_administrator = user1.address
-    scenario += fa2.set_administrator(new_administrator).run(valid=False, sender=user1)
-    scenario += fa2.set_administrator(new_administrator).run(sender=admin)
+    fa2.set_administrator(new_administrator).run(valid=False, sender=user1)
+    fa2.set_administrator(new_administrator).run(sender=admin)
 
     # Check that the administrator has been updated
     scenario.verify(fa2.data.administrator == new_administrator)
@@ -694,15 +694,15 @@ def test_set_metadata():
 
     # Check that only the admin can update the metadata
     new_metadata = sp.record(k="", v=sp.pack("ipfs://zzzz"))
-    scenario += fa2.set_metadata(new_metadata).run(valid=False, sender=user1)
-    scenario += fa2.set_metadata(new_metadata).run(sender=admin)
+    fa2.set_metadata(new_metadata).run(valid=False, sender=user1)
+    fa2.set_metadata(new_metadata).run(sender=admin)
 
     # Check that the metadata is updated
     scenario.verify(fa2.data.metadata[new_metadata.k] == new_metadata.v)
 
     # Add some extra metadata
     extra_metadata = sp.record(k="aaa", v=sp.pack("ipfs://ffff"))
-    scenario += fa2.set_metadata(extra_metadata).run(sender=admin)
+    fa2.set_metadata(extra_metadata).run(sender=admin)
 
     # Check that the two metadata entries are present
     scenario.verify(fa2.data.metadata[new_metadata.k] == new_metadata.v)
@@ -720,47 +720,47 @@ def test_set_pause():
     fa2 = testEnvironment["fa2"]
 
     # Mint a token
-    scenario += fa2.mint(
+    fa2.mint(
         address=user1.address,
         amount=10,
         metadata={"": sp.pack("ipfs://aaa")},
         token_id=0).run(sender=admin)
 
     # Check that the owner can transfer the token
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=user1.address,
             txs=[sp.record(to_=user2.address, token_id=0, amount=3)])
         ]).run(sender=user1)
 
     # Check that the user cannot pause the contract
-    scenario += fa2.set_pause(True).run(valid=False, sender=user1)
+    fa2.set_pause(True).run(valid=False, sender=user1)
 
     # Pause the contract
-    scenario += fa2.set_pause(True).run(sender=admin)
+    fa2.set_pause(True).run(sender=admin)
 
     # Check that the contract information has been updated
     scenario.verify(fa2.data.paused)
 
     # Check that now is not possible to transfer tokens
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=user1.address,
             txs=[sp.record(to_=user2.address, token_id=0, amount=3)])
         ]).run(valid=False, sender=user1)
 
     # Check that it's still possible to mint
-    scenario += fa2.mint(
+    fa2.mint(
         address=user1.address,
         amount=10,
         metadata={"": sp.pack("ipfs://bbb")},
         token_id=1).run(sender=admin)
 
     # Unpause the contract
-    scenario += fa2.set_pause(False).run(sender=admin)
+    fa2.set_pause(False).run(sender=admin)
 
     # Check that it's possible to transfer tokens again
-    scenario += fa2.transfer([
+    fa2.transfer([
         sp.record(
             from_=user1.address,
             txs=[sp.record(to_=user2.address, token_id=0, amount=3)])
