@@ -430,11 +430,13 @@ def test_balance_of():
     scenario.verify(fa2.get_balance(sp.record(owner=user1.address, token_id=0)) == 10)
     scenario.verify(fa2.get_balance(sp.record(owner=user2.address, token_id=1)) == 20)
 
-    # Check that it fails if there is not row for that information in the ledger
-    scenario.verify(sp.is_failing(fa2.get_balance(sp.record(owner=user2.address, token_id=0))))
-    scenario.verify(sp.is_failing(fa2.get_balance(sp.record(owner=user3.address, token_id=0))))
-    scenario.verify(sp.is_failing(fa2.get_balance(sp.record(owner=user1.address, token_id=1))))
-    scenario.verify(sp.is_failing(fa2.get_balance(sp.record(owner=user3.address, token_id=1))))
+    # Check that it doesn't fail if there is not row for that information in the ledger
+    scenario.verify(fa2.get_balance(sp.record(owner=user2.address, token_id=0)) == 0)
+    scenario.verify(fa2.get_balance(sp.record(owner=user3.address, token_id=0)) == 0)
+    scenario.verify(fa2.get_balance(sp.record(owner=user1.address, token_id=1)) == 0)
+    scenario.verify(fa2.get_balance(sp.record(owner=user3.address, token_id=1)) == 0)
+
+    # Check that it fails if the token doesn't exist
     scenario.verify(sp.is_failing(fa2.get_balance(sp.record(owner=user1.address, token_id=10))))
 
     # Check that asking for the token balances fails if the token doesn't exist

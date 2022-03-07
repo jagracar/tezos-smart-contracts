@@ -72,7 +72,7 @@ def test_mint():
 
     # Check that the FA2 contract information has been updated
     scenario.verify(fa2.data.ledger[(user1.address, 0)] == editions)
-    scenario.verify(fa2.data.total_supply[0] == editions)
+    scenario.verify(fa2.data.supply[0] == editions)
     scenario.verify(fa2.data.token_metadata[0].token_id == 0)
     scenario.verify(fa2.data.token_metadata[0].token_info[""] == metadata[""])
     scenario.verify(sp.len(fa2.data.token_data[0]) == 0)
@@ -109,8 +109,8 @@ def test_mint():
     # Check that the FA2 contract information has been updated
     scenario.verify(fa2.data.ledger[(user1.address, 0)] == editions)
     scenario.verify(fa2.data.ledger[(user2.address, 1)] == new_editions)
-    scenario.verify(fa2.data.total_supply[0] == editions)
-    scenario.verify(fa2.data.total_supply[1] == new_editions)
+    scenario.verify(fa2.data.supply[0] == editions)
+    scenario.verify(fa2.data.supply[1] == new_editions)
     scenario.verify(fa2.data.token_metadata[0].token_id == 0)
     scenario.verify(fa2.data.token_metadata[0].token_info[""] == metadata[""])
     scenario.verify(fa2.data.token_metadata[1].token_id == 1)
