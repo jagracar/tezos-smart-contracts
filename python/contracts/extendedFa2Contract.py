@@ -43,7 +43,7 @@ class FA2(sp.Contract):
     OPERATOR_KEY_TYPE = sp.TRecord(
         # The owner of the token editions
         owner=sp.TAddress,
-        # The operator allowed by the owner to transfer the token editions
+        # The operator allowed by the owner to transfer their token editions
         operator=sp.TAddress,
         # The token id
         token_id=sp.TNat).layout(
@@ -160,7 +160,7 @@ class FA2(sp.Contract):
                   message="FA2_INVALID_ROYALTIES")
 
         # Update the big maps
-        token_id = self.data.counter
+        token_id = sp.compute(self.data.counter)
         self.data.ledger[
             (params.royalties.minter.address, token_id)] = params.editions
         self.data.supply[token_id] = params.editions
@@ -192,25 +192,27 @@ class FA2(sp.Contract):
         with sp.for_("transfer", params) as transfer:
             with sp.for_("tx", transfer.txs) as tx:
                 # Check that the token exists
-                self.check_token_exists(tx.token_id)
+                token_id = sp.compute(tx.token_id)
+                self.check_token_exists(token_id)
 
                 # Check that the sender is one of the token operators
+                owner = sp.compute(transfer.from_)
                 sp.verify(
-                    (sp.sender == transfer.from_) | 
+                    (sp.sender == owner) | 
                     self.data.operators.contains(sp.record(
-                        owner=transfer.from_,
+                        owner=owner,
                         operator=sp.sender,
-                        token_id=tx.token_id)),
+                        token_id=token_id)),
                     message="FA2_NOT_OPERATOR")
 
                 # Remove the token amount from the owner
-                owner_key = sp.pair(transfer.from_, tx.token_id)
+                owner_key = sp.pair(owner, token_id)
                 self.data.ledger[owner_key] = sp.as_nat(
                     self.data.ledger.get(owner_key, 0) - tx.amount,
                     "FA2_INSUFFICIENT_BALANCE")
 
                 # Add the token amount to the new owner
-                new_owner_key = sp.pair(tx.to_, tx.token_id)
+                new_owner_key = sp.pair(tx.to_, token_id)
                 self.data.ledger[new_owner_key] = self.data.ledger.get(
                     new_owner_key, 0) + tx.amount
 
@@ -236,9 +238,7 @@ class FA2(sp.Contract):
 
             # Return the owner token balance
             sp.result(sp.record(
-                request=sp.record(
-                    owner=request.owner,
-                    token_id=request.token_id),
+                request=request,
                 balance=self.data.ledger.get(
                     (request.owner, request.token_id), 0)))
 
