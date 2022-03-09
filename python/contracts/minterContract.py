@@ -72,21 +72,21 @@ class MinterContract(sp.Contract):
         # Get a handle on the FA2 contract mint entry point
         fa2_mint_handle = sp.contract(
             t=sp.TRecord(
-                editions=sp.TNat,
+                amount=sp.TNat,
                 metadata=sp.TMap(sp.TString, sp.TBytes),
                 data=sp.TMap(sp.TString, sp.TBytes),
                 royalties=sp.TRecord(
                     minter=MinterContract.USER_ROYALTIES_TYPE,
                     creator=MinterContract.USER_ROYALTIES_TYPE).layout(
                         ("minter", "creator"))).layout(
-                            ("editions", ("metadata", ("data", "royalties")))),
+                            ("amount", ("metadata", ("data", "royalties")))),
             address=self.data.fa2,
             entry_point="mint").open_some()
 
         # Mint the token
         sp.transfer(
             arg=sp.record(
-                editions=params.editions,
+                amount=params.editions,
                 metadata=params.metadata,
                 data=params.data,
                 royalties=sp.record(

@@ -44,6 +44,9 @@ class DummyContract(sp.Contract):
 
 
 def get_test_environment():
+    # Initialize the test scenario
+    scenario = sp.test_scenario()
+
     # Create the test accounts
     admin = sp.test_account("admin")
     user1 = sp.test_account("user1")
@@ -54,9 +57,6 @@ def get_test_environment():
     fa2 = extendedFa2Contract.FA2(
         administrator=admin.address,
         metadata=sp.utils.metadata_of_url("ipfs://aaa"))
-
-    # Add the contract to the test scenario
-    scenario = sp.test_scenario()
     scenario += fa2
 
     # Save all the variables in a test environment dictionary
@@ -83,13 +83,13 @@ def test_mint():
 
     # Check that the admin can mint
     editions = 5
-    metadata = {"": sp.pack("ipfs://aaa")}
-    data = {"code": sp.pack("print('hello world')")}
+    metadata = {"": sp.utils.bytes_of_string("ipfs://aaa")}
+    data = {"code": sp.utils.bytes_of_string("print('hello world')")}
     royalties = sp.record(
         minter=sp.record(address=user1.address, royalties=0),
         creator=sp.record(address=user2.address, royalties=50))
     fa2.mint(
-        editions=editions,
+        amount=editions,
         metadata=metadata,
         data=data,
         royalties=royalties).run(sender=admin)
@@ -97,50 +97,43 @@ def test_mint():
     # Check that the contract information has been updated
     scenario.verify(fa2.get_balance(sp.record(owner=user1.address, token_id=0)) == editions)
     scenario.verify(fa2.total_supply(0) == editions)
-    scenario.verify(fa2.get_token_metadata(0)[""] == metadata[""])
-    scenario.verify(fa2.get_token_data(0)["code"] == data["code"])
-    scenario.verify(fa2.get_token_royalties(0).minter.address == user1.address)
-    scenario.verify(fa2.get_token_royalties(0).minter.royalties == 0)
-    scenario.verify(fa2.get_token_royalties(0).creator.address == user2.address)
-    scenario.verify(fa2.get_token_royalties(0).creator.royalties == 50)
-    scenario.verify(fa2.does_token_exist(0))
-    scenario.verify(~fa2.does_token_exist(1))
+    scenario.verify(fa2.token_metadata(0).token_info[""] == metadata[""])
+    scenario.verify(fa2.token_data(0)["code"] == data["code"])
+    scenario.verify(fa2.token_royalties(0).minter.address == user1.address)
+    scenario.verify(fa2.token_royalties(0).minter.royalties == 0)
+    scenario.verify(fa2.token_royalties(0).creator.address == user2.address)
+    scenario.verify(fa2.token_royalties(0).creator.royalties == 50)
+    scenario.verify(fa2.token_exists(0))
+    scenario.verify(~fa2.token_exists(1))
     scenario.verify(fa2.count_tokens() == 1)
     scenario.verify(sp.len(fa2.all_tokens()) == 1)
 
     # Check that a normal user cannot mint
     fa2.mint(
-        editions=editions,
+        amount=editions,
         metadata=metadata,
         data=data,
         royalties=royalties).run(valid=False, sender=user1)
-
-    # Check that minting fails if the number of editions is zero
-    fa2.mint(
-        editions=0,
-        metadata=metadata,
-        data=data,
-        royalties=royalties).run(valid=False, sender=admin)
 
     # Check that minting fails if the total royalties exceed 100%
     wrong_royalties = sp.record(
         minter=sp.record(address=user1.address, royalties=500),
         creator=sp.record(address=user2.address, royalties=501))
     fa2.mint(
-        editions=editions,
+        amount=editions,
         metadata=metadata,
         data=data,
         royalties=wrong_royalties).run(valid=False, sender=admin)
 
     # Mint the next token
     new_editions = 5
-    new_metadata = {"": sp.pack("ipfs://bbb")}
-    new_data = {"description": sp.pack("my token description")}
+    new_metadata = {"": sp.utils.bytes_of_string("ipfs://bbb")}
+    new_data = {"description": sp.utils.bytes_of_string("my token description")}
     new_royalties = sp.record(
         minter=sp.record(address=user2.address, royalties=10),
         creator=sp.record(address=user2.address, royalties=100))
     fa2.mint(
-        editions=new_editions,
+        amount=new_editions,
         metadata=new_metadata,
         data=new_data,
         royalties=new_royalties).run(sender=admin)
@@ -150,21 +143,21 @@ def test_mint():
     scenario.verify(fa2.get_balance(sp.record(owner=user2.address, token_id=1)) == new_editions)
     scenario.verify(fa2.total_supply(0) == editions)
     scenario.verify(fa2.total_supply(1) == new_editions)
-    scenario.verify(fa2.get_token_metadata(0)[""] == metadata[""])
-    scenario.verify(fa2.get_token_metadata(1)[""] == new_metadata[""])
-    scenario.verify(fa2.get_token_data(0)["code"] == data["code"])
-    scenario.verify(fa2.get_token_data(1)["description"] == new_data["description"])
-    scenario.verify(fa2.get_token_royalties(0).minter.address == user1.address)
-    scenario.verify(fa2.get_token_royalties(0).minter.royalties == 0)
-    scenario.verify(fa2.get_token_royalties(0).creator.address == user2.address)
-    scenario.verify(fa2.get_token_royalties(0).creator.royalties == 50)
-    scenario.verify(fa2.get_token_royalties(1).minter.address == user2.address)
-    scenario.verify(fa2.get_token_royalties(1).minter.royalties == 10)
-    scenario.verify(fa2.get_token_royalties(1).creator.address == user2.address)
-    scenario.verify(fa2.get_token_royalties(1).creator.royalties == 100)
-    scenario.verify(fa2.does_token_exist(0))
-    scenario.verify(fa2.does_token_exist(1))
-    scenario.verify(~fa2.does_token_exist(2))
+    scenario.verify(fa2.token_metadata(0).token_info[""] == metadata[""])
+    scenario.verify(fa2.token_metadata(1).token_info[""] == new_metadata[""])
+    scenario.verify(fa2.token_data(0)["code"] == data["code"])
+    scenario.verify(fa2.token_data(1)["description"] == new_data["description"])
+    scenario.verify(fa2.token_royalties(0).minter.address == user1.address)
+    scenario.verify(fa2.token_royalties(0).minter.royalties == 0)
+    scenario.verify(fa2.token_royalties(0).creator.address == user2.address)
+    scenario.verify(fa2.token_royalties(0).creator.royalties == 50)
+    scenario.verify(fa2.token_royalties(1).minter.address == user2.address)
+    scenario.verify(fa2.token_royalties(1).minter.royalties == 10)
+    scenario.verify(fa2.token_royalties(1).creator.address == user2.address)
+    scenario.verify(fa2.token_royalties(1).creator.royalties == 100)
+    scenario.verify(fa2.token_exists(0))
+    scenario.verify(fa2.token_exists(1))
+    scenario.verify(~fa2.token_exists(2))
     scenario.verify(fa2.count_tokens() == 2)
     scenario.verify(sp.len(fa2.all_tokens()) == 2)
 
@@ -183,8 +176,8 @@ def test_transfer():
     # Mint a token
     editions = 15
     fa2.mint(
-        editions=editions,
-        metadata={"": sp.pack("ipfs://aaa")},
+        amount=editions,
+        metadata={"": sp.utils.bytes_of_string("ipfs://aaa")},
         data={},
         royalties=sp.record(
             minter=sp.record(address=user1.address, royalties=0),
@@ -288,16 +281,16 @@ def test_complex_transfer():
 
     # Mint two tokens
     fa2.mint(
-        editions=10,
-        metadata={"": sp.pack("ipfs://aaa")},
+        amount=10,
+        metadata={"": sp.utils.bytes_of_string("ipfs://aaa")},
         data={},
         royalties=sp.record(
             minter=sp.record(address=user1.address, royalties=0),
             creator=sp.record(address=user1.address, royalties=100))
         ).run(sender=admin)
     fa2.mint(
-        editions=20,
-        metadata={"": sp.pack("ipfs://bbb")},
+        amount=20,
+        metadata={"": sp.utils.bytes_of_string("ipfs://bbb")},
         data={},
         royalties=sp.record(
             minter=sp.record(address=user2.address, royalties=0),
@@ -410,16 +403,16 @@ def test_balance_of():
 
     # Mint two tokens
     fa2.mint(
-        editions=10,
-        metadata={"": sp.pack("ipfs://aaa")},
+        amount=10,
+        metadata={"": sp.utils.bytes_of_string("ipfs://aaa")},
         data={},
         royalties=sp.record(
             minter=sp.record(address=user1.address, royalties=0),
             creator=sp.record(address=user1.address, royalties=100))
         ).run(sender=admin)
     fa2.mint(
-        editions=20,
-        metadata={"": sp.pack("ipfs://bbb")},
+        amount=20,
+        metadata={"": sp.utils.bytes_of_string("ipfs://bbb")},
         data={},
         royalties=sp.record(
             minter=sp.record(address=user2.address, royalties=0),
@@ -477,16 +470,16 @@ def test_update_operators():
 
     # Mint two tokens
     fa2.mint(
-        editions=10,
-        metadata={"": sp.pack("ipfs://aaa")},
+        amount=10,
+        metadata={"": sp.utils.bytes_of_string("ipfs://aaa")},
         data={},
         royalties=sp.record(
             minter=sp.record(address=user1.address, royalties=0),
             creator=sp.record(address=user1.address, royalties=100))
         ).run(sender=admin)
     fa2.mint(
-        editions=20,
-        metadata={"": sp.pack("ipfs://bbb")},
+        amount=20,
+        metadata={"": sp.utils.bytes_of_string("ipfs://bbb")},
         data={},
         royalties=sp.record(
             minter=sp.record(address=user2.address, royalties=0),
@@ -532,7 +525,7 @@ def test_update_operators():
         sp.variant("add_operator", sp.record(
             owner=user1.address,
             operator=user3.address,
-            token_id=10)),
+            token_id=1)),
         ]).run(sender=user1)
 
     # Check that the contract information has been updated
@@ -541,7 +534,7 @@ def test_update_operators():
     scenario.verify(fa2.is_operator(
         sp.record(owner=user1.address, operator=user2.address, token_id=1)))
     scenario.verify(fa2.is_operator(
-        sp.record(owner=user1.address, operator=user3.address, token_id=10)))
+        sp.record(owner=user1.address, operator=user3.address, token_id=1)))
 
     # Check that adding and removing operators works at the same time
     fa2.update_operators([
@@ -552,11 +545,11 @@ def test_update_operators():
         sp.variant("add_operator", sp.record(
             owner=user1.address,
             operator=user2.address,
-            token_id=10)),
+            token_id=1)),
         sp.variant("remove_operator", sp.record(
             owner=user1.address,
             operator=user3.address,
-            token_id=10)),
+            token_id=1)),
         ]).run(sender=user1)
 
     # Check that the contract information has been updated
@@ -564,24 +557,22 @@ def test_update_operators():
         sp.record(owner=user1.address, operator=user3.address, token_id=0)))
     scenario.verify(fa2.is_operator(
         sp.record(owner=user1.address, operator=user2.address, token_id=1)))
-    scenario.verify(fa2.is_operator(
-        sp.record(owner=user1.address, operator=user2.address, token_id=10)))
     scenario.verify(~fa2.is_operator(
-        sp.record(owner=user1.address, operator=user3.address, token_id=10)))
+        sp.record(owner=user1.address, operator=user3.address, token_id=1)))
 
     # Check that removing an operator that doesn't exist works
     scenario.verify(~fa2.is_operator(
-        sp.record(owner=user1.address, operator=user3.address, token_id=100)))
+        sp.record(owner=user1.address, operator=user2.address, token_id=0)))
     fa2.update_operators([
         sp.variant("remove_operator", sp.record(
             owner=user1.address,
-            operator=user3.address,
-            token_id=100)),
+            operator=user2.address,
+            token_id=0)),
         ]).run(sender=user1)
 
     # Check that the contract information has been updated
     scenario.verify(~fa2.is_operator(
-        sp.record(owner=user1.address, operator=user3.address, token_id=100)))
+        sp.record(owner=user1.address, operator=user2.address, token_id=0)))
 
     # Check operators cannot change the operators of editions that they don't own
     fa2.update_operators([
@@ -651,7 +642,7 @@ def test_set_metadata():
     fa2 = testEnvironment["fa2"]
 
     # Check that only the admin can update the metadata
-    new_metadata = sp.record(k="", v=sp.pack("ipfs://zzzz"))
+    new_metadata = sp.record(k="", v=sp.utils.bytes_of_string("ipfs://zzzz"))
     fa2.set_metadata(new_metadata).run(valid=False, sender=user1)
     fa2.set_metadata(new_metadata).run(sender=admin)
 
@@ -659,7 +650,7 @@ def test_set_metadata():
     scenario.verify(fa2.data.metadata[new_metadata.k] == new_metadata.v)
 
     # Add some extra metadata
-    extra_metadata = sp.record(k="aaa", v=sp.pack("ipfs://ffff"))
+    extra_metadata = sp.record(k="aaa", v=sp.utils.bytes_of_string("ipfs://ffff"))
     fa2.set_metadata(extra_metadata).run(sender=admin)
 
     # Check that the two metadata entries are present

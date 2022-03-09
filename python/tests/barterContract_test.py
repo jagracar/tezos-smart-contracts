@@ -12,6 +12,9 @@ fa2Contract = sp.io.import_script_from_url(
 
 
 def get_test_environment():
+    # Initialize the test scenario
+    scenario = sp.test_scenario()
+
     # Create the test accounts
     user1 = sp.test_account("user1")
     user2 = sp.test_account("user2")
@@ -27,16 +30,13 @@ def get_test_environment():
         config=fa2Contract.FA2_config(),
         admin=fa2_admin.address,
         metadata=sp.utils.metadata_of_url("ipfs://bbb"))
+    scenario += fa2_1
+    scenario += fa2_2
 
     # Initialize the barter contract
     barter = barterContract.BarterContract(
         manager=admin.address,
         allowed_fa2s=sp.big_map({fa2_1.address : True}))
-
-    # Add all the contracts to the test scenario
-    scenario = sp.test_scenario()
-    scenario += fa2_1
-    scenario += fa2_2
     scenario += barter
 
     # Save all the variables in a test environment dictionary

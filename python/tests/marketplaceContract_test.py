@@ -41,6 +41,9 @@ class RecipientContract(sp.Contract):
 
 
 def get_test_environment():
+    # Initialize the test scenario
+    scenario = sp.test_scenario()
+
     # Create the test accounts
     admin = sp.test_account("admin")
     collector1 = sp.test_account("collector1")
@@ -49,37 +52,38 @@ def get_test_environment():
     # Initialize the artists contracts that will receive the royalties
     artist1 = RecipientContract()
     artist2 = RecipientContract()
+    scenario += artist1
+    scenario += artist2
 
     # Initialize the organization contracts that will receive the donations
     org1 = RecipientContract()
     org2 = RecipientContract()
+    scenario += org1
+    scenario += org2
 
-    # Initialize extended FA2, minter and marketplace contracts
+    # Initialize the extended FA2 contract
     fa2 = extendedFa2Contract.FA2(
         administrator=admin.address,
         metadata=sp.utils.metadata_of_url("ipfs://aaa"))
+    scenario += fa2
+
+    # Initialize the minter contract
     minter = minterContract.MinterContract(
         administrator=admin.address,
         metadata=sp.utils.metadata_of_url("ipfs://bbb"),
         fa2=fa2.address)
+    scenario += minter
+
+    # Initialize the marketplace contract
     marketplace = marketplaceContract.MarketplaceContract(
         administrator=admin.address,
         metadata=sp.utils.metadata_of_url("ipfs://ccc"),
         fa2=fa2.address,
         fee=sp.nat(25))
+    scenario += marketplace
 
     # Initialize the fee recipient contract
     fee_recipient = RecipientContract()
-
-    # Add the contracts to the test scenario
-    scenario = sp.test_scenario()
-    scenario += artist1
-    scenario += artist2
-    scenario += org1
-    scenario += org2
-    scenario += fa2
-    scenario += minter
-    scenario += marketplace
     scenario += fee_recipient
 
     # Set the minter contract as the admin of the FA2 contract

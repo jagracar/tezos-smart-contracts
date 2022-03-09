@@ -12,24 +12,26 @@ minterContract = sp.io.import_script_from_url(
 
 
 def get_test_environment():
+    # Initialize the test scenario
+    scenario = sp.test_scenario()
+
     # Create the test accounts
     admin = sp.test_account("admin")
     user1 = sp.test_account("user1")
     user2 = sp.test_account("user2")
     user3 = sp.test_account("user3")
 
-    # Initialize extended FA2 and minter contracts
+    # Initialize the extended FA2
     fa2 = extendedFa2Contract.FA2(
         administrator=admin.address,
         metadata=sp.utils.metadata_of_url("ipfs://aaa"))
+    scenario += fa2
+
+    # Initialize the minter contract
     minter = minterContract.MinterContract(
         administrator=admin.address,
         metadata=sp.utils.metadata_of_url("ipfs://bbb"),
         fa2=fa2.address)
-
-    # Add the contracts to the test scenario
-    scenario = sp.test_scenario()
-    scenario += fa2
     scenario += minter
 
     # Set the minter contract as the admin of the FA2 contract
@@ -117,14 +119,14 @@ def test_mint():
     scenario.verify(fa2.data.token_metadata[1].token_info[""] == new_metadata[""])
     scenario.verify(sp.len(fa2.data.token_data[0]) == 0)
     scenario.verify(fa2.data.token_data[1]["code"] == new_data["code"])
-    scenario.verify(fa2.get_token_royalties(0).minter.address == user1.address)
-    scenario.verify(fa2.get_token_royalties(0).minter.royalties == 0)
-    scenario.verify(fa2.get_token_royalties(1).minter.address == user2.address)
-    scenario.verify(fa2.get_token_royalties(1).minter.royalties == 0)
-    scenario.verify(fa2.get_token_royalties(0).creator.address == user1.address)
-    scenario.verify(fa2.get_token_royalties(0).creator.royalties == royalties)
-    scenario.verify(fa2.get_token_royalties(1).creator.address == user2.address)
-    scenario.verify(fa2.get_token_royalties(1).creator.royalties == new_royalties)
+    scenario.verify(fa2.token_royalties(0).minter.address == user1.address)
+    scenario.verify(fa2.token_royalties(0).minter.royalties == 0)
+    scenario.verify(fa2.token_royalties(1).minter.address == user2.address)
+    scenario.verify(fa2.token_royalties(1).minter.royalties == 0)
+    scenario.verify(fa2.token_royalties(0).creator.address == user1.address)
+    scenario.verify(fa2.token_royalties(0).creator.royalties == royalties)
+    scenario.verify(fa2.token_royalties(1).creator.address == user2.address)
+    scenario.verify(fa2.token_royalties(1).creator.royalties == new_royalties)
 
 
 @sp.add_test(name="Test transfer and accept administrator")

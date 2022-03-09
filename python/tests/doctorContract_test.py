@@ -27,15 +27,15 @@ def test_initialization():
 
 @sp.add_test(name="Test treat illness")
 def test_treat_illness():
+    # Initialize the test scenario
+    scenario = sp.test_scenario()
+
     # Initialize the doctor contract
     doctor = doctorContract.DoctorContract()
+    scenario += doctor
 
     # Initialize the patient contract
     patient = patientContract.PatientContract(doctor.address)
-
-    # Add the contracts to the test scenario
-    scenario = sp.test_scenario()
-    scenario += doctor
     scenario += patient
 
     # Make the patient sick

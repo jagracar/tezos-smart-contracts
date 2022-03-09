@@ -465,7 +465,7 @@ class MarketplaceContract(sp.Contract):
 
         """
         return sp.view(
-            name="get_token_royalties",
+            name="token_royalties",
             address=self.data.fa2,
             param=token_id,
             t=sp.TRecord(
