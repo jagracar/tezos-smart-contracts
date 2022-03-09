@@ -63,7 +63,7 @@ def test_mint():
 
     # Check that a normal user can mint
     editions = 5
-    metadata = {"": sp.pack("ipfs://aaa")}
+    metadata = {"": sp.utils.bytes_of_string("ipfs://aaa")}
     data = {}
     royalties = 100
     minter.mint(
@@ -99,8 +99,8 @@ def test_mint():
 
     # Mint another token
     new_editions = 10
-    new_metadata = {"": sp.pack("ipfs://bbb")}
-    new_data = {"code": sp.pack("print('hello world')")}
+    new_metadata = {"": sp.utils.bytes_of_string("ipfs://bbb")}
+    new_data = {"code": sp.utils.bytes_of_string("print('hello world')")}
     new_royalties = 150
     minter.mint(
         editions=new_editions,
@@ -200,7 +200,7 @@ def test_transfer_and_accept_fa2_administrator():
 
     # Check that minting with the old minter fails
     editions = 5
-    metadata = {"": sp.pack("ipfs://aaa")}
+    metadata = {"": sp.utils.bytes_of_string("ipfs://aaa")}
     data = {}
     royalties = 100
     minter.mint(
@@ -236,7 +236,7 @@ def test_set_pause():
 
     # Check that minting fails
     editions = 5
-    metadata = {"": sp.pack("ipfs://aaa")}
+    metadata = {"": sp.utils.bytes_of_string("ipfs://aaa")}
     data = {}
     royalties = 100
     minter.mint(
