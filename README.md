@@ -4,7 +4,7 @@ The development of the smart contracts in this repository is now taking place at
 
 https://github.com/teia-community/teia-smart-contracts
 
-Please, go there more more updated source code and unit tests.
+Please, go there for more updated source code and unit tests.
 
 
 # tezos-smart-contracts
