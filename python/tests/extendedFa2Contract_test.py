@@ -233,7 +233,7 @@ def test_transfer():
         sp.record(
             from_=user1.address,
             txs=[sp.record(to_=user3.address, token_id=0, amount=1)])
-        ]).run(valid=False, sender=user2)
+        ]).run(valid=False, sender=user3)
 
     # Check that the new owner can transfer their own editions
     fa2.transfer([
@@ -344,7 +344,7 @@ def test_complex_transfer():
             from_=user2.address,
             txs=[
                 sp.record(to_=user2.address, token_id=0, amount=1),
-                sp.record(to_=user2.address, token_id=0, amount=2),
+                sp.record(to_=user2.address, token_id=0, amount=0),
                 sp.record(to_=user2.address, token_id=1, amount=2)])
         ]).run(sender=user2)
 
@@ -360,7 +360,7 @@ def test_complex_transfer():
         operator=user2.address,
         token_id=0))]).run(sender=user1)
 
-    # Check that the second user can transfer their tokens and the fist user token
+    # Check that the second user can transfer their tokens and the first user token
     fa2.transfer([
         sp.record(
             from_=user2.address,
@@ -490,7 +490,7 @@ def test_update_operators():
     scenario.verify(~fa2.is_operator(
         sp.record(owner=user1.address, operator=user2.address, token_id=0)))
     scenario.verify(~fa2.is_operator(
-        sp.record(owner=user1.address, operator=user2.address, token_id=0)))
+        sp.record(owner=user2.address, operator=user1.address, token_id=1)))
 
     # Check that is not possible to change the operators if one is not the owner
     fa2.update_operators([
@@ -525,7 +525,7 @@ def test_update_operators():
         sp.variant("add_operator", sp.record(
             owner=user1.address,
             operator=user3.address,
-            token_id=1)),
+            token_id=1))
         ]).run(sender=user1)
 
     # Check that the contract information has been updated
