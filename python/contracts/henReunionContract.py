@@ -27,12 +27,26 @@ class HenReunionContract(sp.Contract):
             participants=sp.big_map())
 
     @sp.entry_point
+    def default(self, unit):
+        """Don't allow any tez transactions.
+
+        """
+        # Define the input parameter data type
+        sp.set_type(unit, sp.TUnit)
+
+        # Check that the user didn't send anytez
+        sp.verify(sp.amount == sp.mutez(0), message="The party is free!")
+
+    @sp.entry_point
     def go_to_the_kitchen(self, unit):
         """You didn't join a party if you didn't visit the kitchen.
 
         """
         # Define the input parameter data type
         sp.set_type(unit, sp.TUnit)
+
+        # Check that the user didn't send anytez
+        sp.verify(sp.amount == sp.mutez(0), message="The party is free!")
 
         # Check that the party didn't finish
         sp.verify(sp.now < self.data.end_party,
