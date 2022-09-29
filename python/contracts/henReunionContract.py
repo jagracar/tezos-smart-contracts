@@ -59,5 +59,5 @@ class HenReunionContract(sp.Contract):
 
 # Add a compilation target
 sp.add_compilation_target("henreunionContract", HenReunionContract(
-    metadata=sp.utils.metadata_of_url("ipfs://aaa"),
+    metadata=sp.utils.metadata_of_url("ipfs://QmadaqKUJyV9fJS9fhEbEC3uQUK5Tz995quGrnwMFqLmzf"),
     end_party=sp.timestamp_from_utc(2022, 10, 3, 12, 0, 0)))
